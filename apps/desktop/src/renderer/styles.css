@@ -1,0 +1,24 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Giao diện quản trị dày đặc dữ liệu: bỏ chọn văn bản mặc định để kéo thả
+     trong bảng và cây tài nguyên không bôi đen lung tung. Chỗ nào cần chọn
+     (log, console) sẽ bật lại riêng. */
+  user-select: none;
+}
+
+.xterm,
+.xterm *,
+pre,
+code {
+  user-select: text;
+}

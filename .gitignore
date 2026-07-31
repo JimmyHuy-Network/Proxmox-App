@@ -1,0 +1,33 @@
+node_modules/
+dist/
+out/
+release/
+*.tsbuildinfo
+.eslintcache
+
+# Electron build output
+apps/desktop/out/
+apps/desktop/release/
+
+# Generated client code — rebuilt from packages/pve-schema/generated/*.schema.json
+packages/pve-api/src/generated/
+
+# Raw upstream schema dump (4.3 MB); the normalized JSON IS committed
+packages/pve-schema/raw/
+
+# Mock server TLS material — regenerated on first run
+apps/mock-server/tls/
+
+# Local env / editor
+.env
+.env.local
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+npm-debug.log*
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

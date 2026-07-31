@@ -1,0 +1,38 @@
+appId: com.proxmoxapp.desktop
+productName: Proxmox VE Manager
+copyright: Copyright © 2026
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - out/**/*
+  - package.json
+
+# Chỉ đóng gói `dependencies`. Toàn bộ thư viện của renderer nằm ở
+# `devDependencies` vì Vite đã gộp chúng vào bundle — đưa vào đây nữa
+# sẽ khiến installer phình thêm hàng trăm megabyte mà không dùng đến.
+npmRebuild: true
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  # Chưa ký số. SmartScreen sẽ cảnh báo khi cài — xem mục rủi ro 6 trong kế hoạch,
+  # cần quyết định chứng chỉ EV hay OV trước khi phát hành ra ngoài.
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Proxmox VE Manager
+  deleteAppDataOnUninstall: false
+
+publish: null

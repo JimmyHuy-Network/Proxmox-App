@@ -1,0 +1,39 @@
+{
+  "name": "proxmox-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ứng dụng desktop điều khiển Proxmox VE với đầy đủ tính năng như web UI",
+  "author": "Proxmox-App",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@pve/desktop",
+    "dev:mock": "npm run dev --workspace=@pve/mock-server",
+    "build": "npm run build --workspace=@pve/desktop",
+    "build:win": "npm run build:win --workspace=@pve/desktop",
+    "typecheck": "npm run typecheck --workspace=@pve/desktop",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml}\"",
+    "test": "vitest run",
+    "schema:fetch": "npm run fetch --workspace=@pve/schema",
+    "schema:generate": "npm run generate --workspace=@pve/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  }
+}

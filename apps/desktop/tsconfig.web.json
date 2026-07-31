@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "baseUrl": ".",
+    // Cố ý KHÔNG có "node" ở đây. Đó là thứ chặn người ta lỡ tay `import fs from 'node:fs'`
+    // trong renderer — renderer chạy sandbox, không có Node.
+    "types": ["vite/client"],
+    "paths": {
+      "@renderer/*": ["src/renderer/*"],
+      "@shared/*": ["src/shared/*"],
+      "@pve/ipc": ["../../packages/pve-ipc/src/index.ts"]
+    }
+  },
+  "include": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx", "src/shared/**/*.ts"]
+}
