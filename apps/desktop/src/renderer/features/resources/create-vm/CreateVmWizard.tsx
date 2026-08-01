@@ -170,7 +170,9 @@ export function CreateVmWizard({
           }}
         />
       ) : null}
-      {draft.step === 1 ? <OsStep draft={draft} onChange={patch} /> : null}
+      {draft.step === 1 ? (
+        <OsStep draft={draft} connectionId={connectionId} onChange={patch} />
+      ) : null}
       {draft.step === 2 ? <SystemStep draft={draft} onChange={patch} /> : null}
       {draft.step === 3 ? <DisksStep draft={draft} onChange={patch} /> : null}
       {draft.step === 4 ? <CpuStep draft={draft} onChange={patch} /> : null}
@@ -226,12 +228,40 @@ function GeneralStep({
 
 function OsStep({
   draft,
+  connectionId,
   onChange,
 }: {
   draft: CreateVmDraft
+  connectionId: string
   onChange: (p: Partial<CreateVmDraft>) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
+
+  const isoQuery = useQuery({
+    queryKey: ['vm-isos', connectionId, draft.node],
+    queryFn: async () => {
+      const storages = await pveRequest<{ storage: string; content?: string }[]>(
+        connectionId,
+        'GET',
+        '/nodes/{node}/storage',
+        { node: draft.node },
+      )
+      const isoStorages = storages.filter((s) => (s.content ?? '').split(',').includes('iso'))
+      const vols: { volid: string }[] = []
+      for (const s of isoStorages) {
+        const rows = await pveRequest<{ volid: string }[]>(
+          connectionId,
+          'GET',
+          '/nodes/{node}/storage/{storage}/content',
+          { node: draft.node, storage: s.storage, content: 'iso' },
+        )
+        vols.push(...rows)
+      }
+      return vols
+    },
+    enabled: Boolean(draft.node),
+  })
+
   return (
     <Form layout="vertical">
       <Form.Item label={t('wizard.ostype')} required>
@@ -242,6 +272,18 @@ function OsStep({
         />
       </Form.Item>
       <Form.Item label={t('wizard.iso')} help={t('wizard.isoHelp')}>
+        <Select
+          showSearch
+          allowClear
+          loading={isoQuery.isLoading}
+          placeholder={t('wizard.isoPlaceholder')}
+          value={draft.iso || undefined}
+          options={(isoQuery.data ?? []).map((v) => ({ value: v.volid, label: v.volid }))}
+          onChange={(iso) => onChange({ iso: iso ?? '' })}
+          notFoundContent={isoQuery.isLoading ? t('common.loading') : t('wizard.isoEmpty')}
+        />
+      </Form.Item>
+      <Form.Item label={t('wizard.isoManual')}>
         <Input
           placeholder="local:iso/debian-13.iso"
           value={draft.iso}

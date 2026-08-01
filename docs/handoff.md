@@ -10,9 +10,8 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 đang chạy — Hardware + wizard VM/CT xong**
-(PveGrid/PveForm, snapshot, Hardware editable, Create VM 8 bước, Create CT 7 bước).
-190 test đạt, typecheck và lint sạch.
+**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 gần xong** — Hardware đầy đủ (kể cả CD/USB/
+PCI/EFI), Options, wizard VM/CT, clone/migrate/resize. 193 test đạt, typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -36,16 +35,19 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 | **Mock PUT config**: `delete=` CSV + sync `cpus`/`maxmem`; `type=vm` = qemu∪lxc | Xong |
 | **Mock POST tạo VM** (`qmcreate`) / **CT** (`vzcreate`) ghi guest vào world sau task | Xong |
 | **Wizard tạo VM 8 bước** + **wizard tạo CT 7 bước** (Dashboard → Tạo mới) | Xong |
+| **Hardware nâng cao** CD/USB/audio/serial/PCI/EFI-TPM | Xong |
+| **Tab Options** (onboot/startup/agent/…) | Xong |
+| **Clone / migrate / resize** (mock + UI GuestOps) | Xong |
+| **Picker ISO** (wizard VM) / **picker vztmpl** (wizard CT) | Xong |
 
 Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
 đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
 
-**Chưa làm ở phần còn lại của giai đoạn 4:** PCI/USB/serial/EFI/cloud-init trên Hardware,
-clone/migrate/resize-disk, tab Options. Xem mục 6.
+**Còn mỏng trong GĐ 4:** cloud-init form riêng, move-disk UI, cây snapshot lồng nhau,
+template convert, quyền/ACL theo guest, E2E Playwright. Xem mục 6.
 
-**Chưa kiểm bằng tương tác desktop thật.** Hardware + wizard VM/CT được xác nhận bằng test
-tự động (190 test), typecheck, lint. Chưa tự tay click vì phiên cloud không điều khiển
-desktop. Nên đối chiếu bằng tay trước khi coi xong hoàn toàn.
+**Chưa kiểm bằng tương tác desktop thật.** Xác nhận bằng 193 test tự động, typecheck, lint.
+Nên đối chiếu bằng tay / Playwright trước khi coi GĐ 4 đóng.
 
 ### Kiểm chứng lại toàn bộ
 
@@ -342,23 +344,19 @@ Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớ
 Hardware editable (CPU/RAM/đĩa/mạng) đã xong; phần việc lớn còn lại là wizard tạo mới và
 các loại thiết bị nâng cao.
 
-**Đã xong (phần 1 + Hardware + wizard VM/CT):**
-1. `<PveGrid>` / `<PveForm>` — hai trừu tượng cốt lõi (xem mục 7 của `docs/plan.md`).
-2. Dashboard đọc từ store `resources` (không poll trùng `/cluster/resources`).
-3. `GuestDrawer` tabs: Tổng quan / Phần cứng / Snapshot (snapshot CRUD đầy đủ).
-4. **Hardware editable** — `HardwareTab` + form ở `renderer/features/resources/hardware/`.
-   PCI/USB/serial/EFI/cloud-init vẫn mục “Khác” (chỉ đọc).
-5. Mock PUT config: `delete`, sync `cpus`/`maxmem`; `type=vm` = qemu∪lxc.
-6. **Wizard tạo VM** — `CreateVmWizard` (8 bước); ISO nhập tay volid.
-7. **Wizard tạo CT** — `CreateCtWizard` (7 bước); picker `vztmpl` từ storage content
-   (+ nhập tay volid). Mock `POST /nodes/{node}/lxc` → UPID `vzcreate`.
-   Dashboard dropdown **Tạo mới** → VM / CT.
+**Đã xong (gần đủ GĐ 4 theo plan.md):**
+1. `<PveGrid>` / `<PveForm>` + Dashboard từ store `resources`.
+2. `GuestDrawer`: Tổng quan (+ GuestOps) / Phần cứng / Snapshot / Options.
+3. Hardware: CPU/RAM/đĩa/mạng + CD/USB/audio/serial/PCI/EFI-TPM.
+4. Wizard VM (8) + CT (7); picker ISO / vztmpl từ storage content.
+5. Mock: PUT config, qmcreate/vzcreate, qmclone/vzclone, qmigrate/vzmigrate, qmresize/vzresize.
+6. Clone / migrate / resize UI trên overview.
 
-**Còn lại:**
-8. **Hardware nâng cao:** PCI, USB, serial, audio, EFI/TPM, cloud-init.
-9. **Clone/template/migrate/move-disk/resize-disk** + cây snapshot lồng nhau.
-10. Picker ISO cho wizard VM (giống vztmpl).
-11. **Quyền theo guest**, lịch sử task theo guest, tab Options.
+**Còn lại (làm mỏng hoặc sang GĐ sau):**
+7. Cloud-init form riêng; move-disk / move_volume UI; convert template.
+8. Cây snapshot lồng nhau (`parent`) + clone-from-snapshot.
+9. Quyền/ACL theo guest; lịch sử task theo guest.
+10. Playwright `_electron` E2E (plan §8): tạo → start → snapshot → rollback → xóa.
 
 Mock cần bổ sung dần theo từng nhóm tính năng — endpoint nào chưa có handler riêng vẫn trả lời
 hợp lệ nhờ auto-faker, nên UI dựng được trước khi viết hành vi thật cho mock.
