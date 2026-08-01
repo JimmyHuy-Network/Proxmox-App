@@ -356,6 +356,32 @@ Hai hệ quả kiến trúc:
 *(Ticket vẫn cần cho luồng đăng nhập người dùng thường và cho TFA — token chỉ là lựa chọn
 thêm, không thay thế.)*
 
+### Đối chiếu giai đoạn 2 với PVE 9.2.2 thật (đọc lẫn ghi)
+
+Đã chạy toàn bộ tầng giai đoạn 2 (Vault + ConnectionPool + transport ghim cert) với server
+thật, credential do người dùng cấp qua chat, được toàn quyền test. Kết quả:
+
+**Ghim vân tay chứng chỉ thật hoạt động.** Probe đọc đúng cert tự ký của Proxmox
+(subject `pve.localdomain`, issuer `Proxmox Virtual Environment`). Ghim SAI vân tay → transport
+chặn với lỗi FINGERPRINT_MISMATCH. Ghim đúng → kết nối được. Đây là kiểm chứng độc lập rằng
+bản sửa "kiểm ở tầng socket" (mục 2) đúng — với cert thật, không chỉ mock.
+
+**Cookie URL-encode + CSRF thật đều đúng.** Ticket thật chứa `:` và `=`; mọi GET thành công
+xác nhận cookie mã hóa đúng. POST (tạo snapshot) và DELETE (xóa snapshot) thành công xác nhận
+CSRF token được gửi đúng cho thao tác ghi — nếu sai server trả 401.
+
+**Task tracking với UPID thật hoạt động** — quan trọng cho giai đoạn 3. Tạo/xóa snapshot và
+reboot trả về UPID thật; `parseUpid` + `upidResourceKind` phân tích đúng; poll
+`/tasks/{upid}/status` tới `stopped` với `exitstatus=OK` và đọc được log. Mọi thao tác đã khôi
+phục (snapshot xóa sạch, CT về `running`).
+
+**Phát hiện cho giai đoạn 3: tên task LXC thật.** Type task của LXC là `vzsnapshot`,
+`vzdelsnapshot`, `vzreboot`, `vzstart`, `vzstop` — KHÔNG phải `qmsnapshot` như mock đang dùng
+lẫn lộn. `upidResourceKind` xử lý đúng nhờ prefix `vz`, nhưng **mock server chưa có handler
+snapshot POST/DELETE** (đang dùng auto-faker), và task engine của mock nên dùng đúng các tên
+này. Khi làm task tracking giai đoạn 3, cập nhật `apps/mock-server/src/tasks/engine.ts` và thêm
+handler snapshot để test sát thực tế hơn.
+
 ## 8. Câu hỏi để ngỏ
 
 1. **Advisory `PSA-2026-00014-1`** — nên đọc trước giai đoạn 5. Nhưng đối chiếu trên đã cho
