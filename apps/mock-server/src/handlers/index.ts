@@ -249,6 +249,44 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     })
   })
 
+  // Tạo CT (LXC) — required: node, vmid, ostemplate. Task type thật là `vzcreate`.
+  on('POST', '/nodes/{node}/lxc', ({ input, mock, auth }) => {
+    const node = String(input['node'])
+    if (!mock.world.node(node)) throw new HttpError(500, 'no such node')
+
+    const vmid = num(input['vmid'])
+    if (!Number.isInteger(vmid) || vmid < 100) {
+      throw new HttpError(400, 'invalid vmid')
+    }
+    if (mock.world.guest(vmid)) {
+      throw new HttpError(500, `CT ${vmid} already exists`)
+    }
+
+    const ostemplate = input['ostemplate']
+    if (typeof ostemplate !== 'string' || ostemplate.trim() === '') {
+      throw new HttpError(400, 'Parameter verification failed. (ostemplate: property is missing and it is not optional)')
+    }
+
+    const shouldStart = input['start'] === 1 || input['start'] === '1' || input['start'] === true
+    const guest = buildLxcGuestFromCreate(node, vmid, input)
+
+    return runTask(mock, {
+      node,
+      type: 'vzcreate',
+      id: String(vmid),
+      user: auth.username,
+      onSuccess: () => {
+        mock.world.addGuest(guest)
+        if (shouldStart) {
+          guest.status = 'running'
+          guest.uptime = 1
+          guest.mem = Math.floor(guest.maxmem * 0.4)
+          guest.cpu = 0.02
+        }
+      },
+    })
+  })
+
   for (const type of ['qemu', 'lxc'] as const) {
     on('GET', `/nodes/{node}/${type}`, ({ input, mock }) =>
       mock.world.current.guests
@@ -532,6 +570,12 @@ const CREATE_META_KEYS = new Set([
   'bwlimit',
   'live-restore',
   'storage',
+  'ostemplate',
+  'password',
+  'ssh-public-keys',
+  'ignore-unpack-errors',
+  'restore',
+  'ha-managed',
 ])
 
 /**
@@ -597,6 +641,83 @@ function buildQemuGuestFromCreate(
     status: 'stopped',
     cpu: 0,
     cpus: Math.max(1, cores * sockets),
+    mem: 0,
+    maxmem: memoryMiB * 1024 * 1024,
+    disk: 0,
+    maxdisk,
+    uptime: 0,
+    template: config['template'] === 1 || config['template'] === '1',
+    ...(typeof config['tags'] === 'string' ? { tags: String(config['tags']) } : {}),
+    config,
+    snapshots: [],
+  }
+}
+
+/**
+ * Dựng `MockGuest` LXC từ body `POST /nodes/{node}/lxc`.
+ * `ostemplate` / `password` chỉ dùng lúc tạo — không ghi vào config.
+ */
+function buildLxcGuestFromCreate(
+  node: string,
+  vmid: number,
+  input: Record<string, unknown>,
+): MockGuest {
+  const config: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (CREATE_META_KEYS.has(key)) continue
+    if (value === undefined || value === null || value === '') continue
+    if (
+      typeof value === 'string' &&
+      /^(cores|memory|swap|cpuunits)$/.test(key) &&
+      Number.isFinite(Number(value))
+    ) {
+      config[key] = Number(value)
+    } else if (typeof value === 'boolean') {
+      config[key] = value ? 1 : 0
+    } else {
+      config[key] = value as string | number
+    }
+  }
+
+  if (config['cores'] === undefined) config['cores'] = 1
+  if (config['memory'] === undefined) config['memory'] = 512
+  if (config['swap'] === undefined) config['swap'] = 512
+  if (config['arch'] === undefined) config['arch'] = 'amd64'
+  if (config['unprivileged'] === undefined) config['unprivileged'] = 1
+
+  // rootfs mặc định nếu wizard chỉ gửi storage:size qua tham số rootfs hoặc storage+size ngầm.
+  if (config['rootfs'] === undefined) {
+    const storage = typeof input['storage'] === 'string' && input['storage'] !== '' ? String(input['storage']) : 'local-lvm'
+    config['rootfs'] = `${storage}:8`
+  }
+
+  const cores = num(config['cores'])
+  const memoryMiB = num(config['memory'])
+  const hostname =
+    typeof config['hostname'] === 'string' && config['hostname'] !== ''
+      ? String(config['hostname'])
+      : `ct-${vmid}`
+  if (config['hostname'] === undefined) config['hostname'] = hostname
+
+  let maxdisk = 8 * 1024 ** 3
+  const rootfs = String(config['rootfs'] ?? '')
+  const sizeMatch = /(?:^|,)size=(\d+(?:\.\d+)?)([GT])/i.exec(rootfs)
+  if (sizeMatch) {
+    const n = Number(sizeMatch[1])
+    maxdisk = sizeMatch[2]!.toUpperCase() === 'T' ? n * 1024 ** 4 : n * 1024 ** 3
+  } else {
+    const createMatch = /^[^:]+:(\d+(?:\.\d+)?)$/.exec(rootfs.split(',')[0] ?? '')
+    if (createMatch) maxdisk = Number(createMatch[1]) * 1024 ** 3
+  }
+
+  return {
+    vmid,
+    name: hostname,
+    type: 'lxc',
+    node,
+    status: 'stopped',
+    cpu: 0,
+    cpus: Math.max(1, cores),
     mem: 0,
     maxmem: memoryMiB * 1024 * 1024,
     disk: 0,
