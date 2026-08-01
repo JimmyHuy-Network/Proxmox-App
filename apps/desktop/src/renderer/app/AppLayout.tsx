@@ -1,16 +1,14 @@
-import { useEffect, useState } from 'react'
-import { Badge, Dropdown, Layout, Menu, Space, Typography, theme } from 'antd'
-import {
-  ApiOutlined,
-  CodeOutlined,
-  DashboardOutlined,
-  DownOutlined,
-  UpOutlined,
-} from '@ant-design/icons'
+import { useEffect } from 'react'
+import { Badge, Divider, Dropdown, Layout, Menu, Space, Typography, theme } from 'antd'
+import { ApiOutlined, CodeOutlined, DashboardOutlined, DownOutlined } from '@ant-design/icons'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { ConnectionPhase } from '@pve/ipc'
-import { subscribeConnectionEvents, useConnections } from '../stores/connections'
+import { useConnections } from '../stores/connections'
+import { subscribePveEvents } from '../lib/events'
+import { ResourceTree } from '../features/resources/ResourceTree'
+import { TaskDock } from '../features/tasks/TaskDock'
+import { GuestDrawer } from '../features/resources/GuestDrawer'
 
 const { Sider, Header, Content, Footer } = Layout
 
@@ -67,14 +65,16 @@ function ConnectionSwitcher(): React.JSX.Element | null {
 export function AppLayout(): React.JSX.Element {
   const { t } = useTranslation()
   const { token } = theme.useToken()
-  const [dockOpen, setDockOpen] = useState(false)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const refresh = useConnections((s) => s.refresh)
+  const activeId = useConnections((s) => s.activeId)
+  const activePhase = useConnections((s) => (s.activeId ? s.phases[s.activeId] : undefined))
+  const connected = activeId !== null && activePhase === 'authenticated'
 
-  // Nạp danh sách kết nối và lắng nghe sự kiện đổi pha xác thực từ main.
+  // Nạp danh sách kết nối và lắng nghe mọi sự kiện đẩy từ main (auth, resources, task).
   useEffect(() => {
     void refresh()
-    const unsubscribe = subscribeConnectionEvents()
+    const unsubscribe = subscribePveEvents()
     return unsubscribe
   }, [refresh])
 
@@ -107,13 +107,17 @@ export function AppLayout(): React.JSX.Element {
         <Sider
           width={240}
           theme="dark"
-          style={{ borderRight: `1px solid ${token.colorBorderSecondary}` }}
+          style={{
+            borderRight: `1px solid ${token.colorBorderSecondary}`,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
         >
           <Menu
             mode="inline"
             theme="dark"
             selectedKeys={[pathname]}
-            style={{ height: '100%', borderInlineEnd: 0 }}
+            style={{ borderInlineEnd: 0, flex: 'none' }}
             items={[
               {
                 key: '/',
@@ -132,6 +136,15 @@ export function AppLayout(): React.JSX.Element {
               },
             ]}
           />
+
+          {connected && activeId && (
+            <>
+              <Divider style={{ margin: '4px 0', borderColor: token.colorBorderSecondary }} />
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <ResourceTree connectionId={activeId} />
+              </div>
+            </>
+          )}
         </Sider>
 
         <Layout>
@@ -146,37 +159,12 @@ export function AppLayout(): React.JSX.Element {
               borderTop: `1px solid ${token.colorBorderSecondary}`,
             }}
           >
-            <button
-              type="button"
-              onClick={() => setDockOpen((open) => !open)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 16px',
-                background: 'transparent',
-                border: 'none',
-                color: token.colorTextSecondary,
-                cursor: 'pointer',
-                font: 'inherit',
-                fontSize: 12,
-              }}
-            >
-              {dockOpen ? <DownOutlined /> : <UpOutlined />}
-              {t('tasks.dockTitle')}
-            </button>
-
-            {dockOpen && (
-              <div style={{ padding: '8px 16px 12px', height: 140, overflow: 'auto' }}>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('tasks.empty')}
-                </Typography.Text>
-              </div>
-            )}
+            <TaskDock />
           </Footer>
         </Layout>
       </Layout>
+
+      <GuestDrawer />
     </Layout>
   )
 }

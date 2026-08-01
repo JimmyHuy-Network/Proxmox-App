@@ -1,22 +1,25 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { IpcChannel, type AuthEvent } from '@pve/ipc'
+import { IpcChannel, type AuthEvent, type PveEvent } from '@pve/ipc'
 import { installCsp } from './security/csp'
 import { ConsoleRelayServer } from './console/relay-server'
 import { registerConsoleHandlers } from './ipc/console.handlers'
 import { registerPveHandlers } from './ipc/pve.handlers'
 import { registerVaultHandlers } from './ipc/vault.handlers'
+import { registerStreamHandlers } from './ipc/stream.handlers'
 import { SafeStorageEncryptor } from './security/encryptor'
 import { Vault } from './security/vault'
 import { ConnectionPool } from './pve/connection-pool'
+import { ResourcePoller } from './pve/resource-poller'
+import { TaskTracker } from './pve/task-tracker'
 import { createMainWindow, installNavigationGuards, openExternalLink } from './window'
 
 const isDev = !app.isPackaged
 const relay = new ConsoleRelayServer()
 
 /** Đẩy một sự kiện tới renderer của cửa sổ chính (nếu có). */
-function pushEvent(event: AuthEvent): void {
+function pushEvent(event: PveEvent): void {
   const [window] = BrowserWindow.getAllWindows()
   window?.webContents.send(IpcChannel.PveEvent, event)
 }
@@ -51,13 +54,38 @@ async function bootstrap(): Promise<void> {
     pushEvent({ kind: 'auth', connectionId: id, phase: phase as AuthEvent['phase'], ...(message ? { message } : {}) })
   })
 
+  // Poll /cluster/resources trong main để cây tài nguyên và dashboard cùng dùng
+  // chung một nguồn, tiếp tục chạy cả khi cửa sổ thu nhỏ. Task tracker tự động
+  // theo dõi mọi UPID mà pve.handlers thấy trả về — xem ghi chú trong file đó.
+  const resourcePoller = new ResourcePoller(pool, (connectionId, resources, at) => {
+    pushEvent({ kind: 'resources', connectionId, resources, at })
+  })
+  const taskTracker = new TaskTracker(pool, (connectionId, upid, event) => {
+    if (event.kind === 'phase') {
+      pushEvent({
+        kind: 'task',
+        connectionId,
+        upid,
+        phase: event.phase,
+        ...(event.exitstatus ? { exitstatus: event.exitstatus } : {}),
+      })
+    } else {
+      pushEvent({ kind: 'log-chunk', connectionId, upid, lines: event.lines })
+    }
+  })
+
   await relay.start()
   registerConsoleHandlers(relay)
-  registerPveHandlers(pool)
+  registerPveHandlers(pool, taskTracker)
   registerVaultHandlers(vault, pool)
+  registerStreamHandlers(resourcePoller)
   registerAppHandlers()
 
-  app.on('will-quit', () => pool.closeAll())
+  app.on('will-quit', () => {
+    pool.closeAll()
+    resourcePoller.stopAll()
+    taskTracker.stopAll()
+  })
 
   app.on('browser-window-created', (_event, window) => {
     optimizer.watchWindowShortcuts(window)

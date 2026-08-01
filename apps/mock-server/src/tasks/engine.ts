@@ -215,6 +215,10 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 600, log: 'tạo ảnh chụp' },
     { atMs: 1500, done: 'OK' },
   ],
+  qmdelsnapshot: [
+    { atMs: 400, log: 'xoá ảnh chụp' },
+    { atMs: 1000, done: 'OK' },
+  ],
   qmrollback: [
     { atMs: 800, log: 'khôi phục về ảnh chụp' },
     { atMs: 2500, done: 'OK' },
@@ -222,6 +226,20 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
   qmdestroy: [
     { atMs: 500, log: 'xoá đĩa' },
     { atMs: 1800, done: 'OK' },
+  ],
+  // Đối chiếu với PVE 9.2.2 thật: type task của snapshot LXC là vzsnapshot/
+  // vzdelsnapshot, khác hẳn qmsnapshot dùng cho QEMU — không dùng chung tên.
+  vzsnapshot: [
+    { atMs: 500, log: 'tạo ảnh chụp container' },
+    { atMs: 1200, done: 'OK' },
+  ],
+  vzdelsnapshot: [
+    { atMs: 300, log: 'xoá ảnh chụp container' },
+    { atMs: 800, done: 'OK' },
+  ],
+  vzrollback: [
+    { atMs: 600, log: 'khôi phục container về ảnh chụp' },
+    { atMs: 2000, done: 'OK' },
   ],
   vzdestroy: [{ atMs: 1500, done: 'OK' }],
 }

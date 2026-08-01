@@ -41,12 +41,3 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     }
   },
 }))
-
-/** Đăng ký nhận sự kiện đổi pha xác thực từ main. Gọi một lần khi app khởi động. */
-export function subscribeConnectionEvents(): () => void {
-  return window.pve.onEvent((event) => {
-    if (event.kind === 'auth') {
-      useConnections.getState().setPhase(event.connectionId, event.phase)
-    }
-  })
-}

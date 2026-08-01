@@ -2,12 +2,13 @@
 
 Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: Giai đoạn 2 xong.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
-> động cho **675 endpoint**, máy chủ giả lập, và **quản lý nhiều kết nối** đầy đủ: vault mã
-> hóa credential, ghim vân tay chứng chỉ (TOFU), xác thực hai lớp, và dashboard dữ liệu thật.
-> Cây tài nguyên và hệ thống tác vụ thuộc giai đoạn 3.
+> **Trạng thái: Giai đoạn 3 xong.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
+> động cho **675 endpoint**, máy chủ giả lập, **quản lý nhiều kết nối** đầy đủ (vault, TOFU
+> chứng chỉ, TFA), và **cây tài nguyên trực tiếp**: poller `/cluster/resources` trong main,
+> dock tác vụ theo dõi UPID tự động, biểu đồ RRD (uPlot), và xem nhanh guest kèm nút vòng đời.
+> Quản lý VM/CT đầy đủ (wizard, tab Hardware) thuộc giai đoạn 4.
 
-## Thử luồng kết nối
+## Thử luồng đầy đủ
 
 Chạy mock server rồi mở app, vào tab **Kết nối** → **Thêm kết nối**:
 
@@ -17,7 +18,11 @@ npm run dev:mock
 
 Rồi trong app (một terminal khác `npm run dev`), thêm kết nối tới `127.0.0.1:8006`,
 tài khoản `root@pam`, mật khẩu bất kỳ (trừ `sai`). App sẽ hiện dialog xác nhận vân tay
-chứng chỉ tự ký — bấm tin tưởng — rồi dashboard hiển thị node/VM/container thật từ mock.
+chứng chỉ tự ký — bấm tin tưởng — rồi cây tài nguyên bên trái hiện node/VM/container thật
+từ mock, cập nhật mỗi 3 giây. Bấm vào một guest để mở khung xem nhanh với biểu đồ CPU/RAM
+và nút Khởi động/Tắt máy/Khởi động lại — bấm nút sẽ mở một tác vụ, hiện ngay trong dock
+nhật ký tác vụ ở đáy màn hình với log chạy trực tiếp.
+
 Thử tài khoản `tfa@pve` để xem luồng nhập OTP (mã `123456`).
 
 ## Chạy thử

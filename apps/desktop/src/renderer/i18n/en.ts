@@ -47,10 +47,16 @@ export const en: TranslationSchema = {
     loading: 'Loading…',
     error: 'Error',
     version: 'Version',
+    search: 'Search',
+    status: 'Status',
   },
   tasks: {
     dockTitle: 'Task log',
     empty: 'No tasks yet',
+    running: 'Running',
+    done: 'Done',
+    failed: 'Failed',
+    viewLog: 'View log',
   },
   connections: {
     title: 'Connections',
@@ -110,5 +116,16 @@ export const en: TranslationSchema = {
     code: 'OTP code',
     submit: 'Confirm',
     invalid: 'Invalid OTP code',
+  },
+  guest: {
+    start: 'Start',
+    shutdown: 'Shutdown',
+    stop: 'Stop',
+    reboot: 'Reboot',
+    stopConfirm: 'Force stop will power off immediately, unsaved data may be lost. Continue?',
+    cpu: 'CPU',
+    memory: 'Memory',
+    node: 'Node',
+    uptime: 'Uptime',
   },
 }

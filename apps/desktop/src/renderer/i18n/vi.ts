@@ -51,10 +51,16 @@ export const vi = {
     loading: 'Đang tải…',
     error: 'Lỗi',
     version: 'Phiên bản',
+    search: 'Tìm kiếm',
+    status: 'Trạng thái',
   },
   tasks: {
     dockTitle: 'Nhật ký tác vụ',
     empty: 'Chưa có tác vụ nào',
+    running: 'Đang chạy',
+    done: 'Đã xong',
+    failed: 'Thất bại',
+    viewLog: 'Xem log',
   },
   connections: {
     title: 'Kết nối',
@@ -114,6 +120,17 @@ export const vi = {
     code: 'Mã OTP',
     submit: 'Xác nhận',
     invalid: 'Mã OTP không đúng',
+  },
+  guest: {
+    start: 'Khởi động',
+    shutdown: 'Tắt máy',
+    stop: 'Buộc dừng',
+    reboot: 'Khởi động lại',
+    stopConfirm: 'Buộc dừng sẽ ngắt nguồn ngay lập tức, có thể mất dữ liệu chưa lưu. Tiếp tục?',
+    cpu: 'CPU',
+    memory: 'Bộ nhớ',
+    node: 'Node',
+    uptime: 'Thời gian chạy',
   },
 }
 

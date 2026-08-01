@@ -1,8 +1,9 @@
 import { HttpError, handlerKey, type HandlerTable, type MockHandler } from '../router.ts'
 import { TFA_CODE, type AuthStore } from '../auth.ts'
 import { failingVariant, templateFor } from '../tasks/engine.ts'
+import { synthRrd } from '../rrd.ts'
 import type { MockContext } from '../context.ts'
-import type { GuestType, MockGuest } from '../state/world.ts'
+import type { GuestType, MockGuest, MockSnapshot } from '../state/world.ts'
 
 /**
  * Hành vi thật cho những endpoint quan trọng nhất.
@@ -173,6 +174,17 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     }
   })
 
+  on('GET', '/nodes/{node}/rrddata', ({ input, mock }) => {
+    const node = mock.world.node(String(input['node']))
+    if (!node) throw new HttpError(500, 'no such node')
+    return synthRrd(
+      node.node,
+      String(input['timeframe'] ?? 'hour'),
+      { maxcpu: node.maxcpu, maxmem: node.maxmem, maxdisk: node.maxdisk },
+      'node',
+    )
+  })
+
   on('GET', '/nodes/{node}/tasks', ({ input, mock }) =>
     mock.tasks.list(String(input['node'])).map(taskSummary),
   )
@@ -246,6 +258,83 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     })
 
     const prefix = type === 'qemu' ? 'qm' : 'vz'
+
+    // Đối chiếu với PVE 9.2.2 thật: type task của snapshot LXC là `vzsnapshot` /
+    // `vzdelsnapshot`, không phải `qmsnapshot` dùng chung cho cả hai loại guest
+    // như suy đoán ban đầu. Trước bản sửa này, POST/DELETE snapshot rơi vào
+    // auto-faker và trả về chuỗi không có hình dạng UPID — client không track
+    // được, khác hẳn hành vi thật.
+    on('POST', `/nodes/{node}/${type}/{vmid}/snapshot`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      const name = String(input['snapname'])
+
+      if (guest.snapshots.some((s) => s.name === name)) {
+        throw new HttpError(500, `snapshot '${name}' already exists`)
+      }
+
+      return runTask(mock, {
+        node,
+        type: `${prefix}snapshot`,
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          const snapshot: MockSnapshot = {
+            name,
+            description: typeof input['description'] === 'string' ? input['description'] : '',
+            snaptime: Math.floor(Date.now() / 1000),
+            vmstate: input['vmstate'] === 1 || input['vmstate'] === '1',
+          }
+          guest.snapshots.push(snapshot)
+        },
+      })
+    })
+
+    on('DELETE', `/nodes/{node}/${type}/{vmid}/snapshot/{snapname}`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      const name = String(input['snapname'])
+
+      if (!guest.snapshots.some((s) => s.name === name)) {
+        throw new HttpError(500, `snapshot '${name}' does not exist`)
+      }
+
+      return runTask(mock, {
+        node,
+        type: `${prefix}delsnapshot`,
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          guest.snapshots = guest.snapshots.filter((s) => s.name !== name)
+        },
+      })
+    })
+
+    on('POST', `/nodes/{node}/${type}/{vmid}/snapshot/{snapname}/rollback`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      const name = String(input['snapname'])
+
+      if (!guest.snapshots.some((s) => s.name === name)) {
+        throw new HttpError(500, `snapshot '${name}' does not exist`)
+      }
+
+      return runTask(mock, { node, type: `${prefix}rollback`, id: String(vmid), user: auth.username })
+    })
+
+    // ── RRD ────────────────────────────────────────────────────────────────
+    on('GET', `/nodes/{node}/${type}/{vmid}/rrddata`, ({ input, mock }) => {
+      const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
+      return synthRrd(
+        `${guest.node}/${type}/${guest.vmid}`,
+        String(input['timeframe'] ?? 'hour'),
+        { maxcpu: guest.cpus, maxmem: guest.maxmem, maxdisk: guest.maxdisk },
+        'guest',
+      )
+    })
 
     const power = (
       action: 'start' | 'stop' | 'shutdown' | 'reboot' | 'reset' | 'suspend' | 'resume',

@@ -52,6 +52,22 @@ const api = {
     return ipcRenderer.invoke(IpcChannel.PveCancel, requestId)
   },
 
+  /**
+   * Đăng ký một luồng đẩy (hiện chỉ có `'resources'` — theo dõi `/cluster/resources`
+   * của một kết nối trong main). Nhớ gọi `streamStop` lúc unmount, nếu không main
+   * sẽ tiếp tục poll một kết nối không còn ai xem.
+   */
+  streamStart(
+    kind: 'resources',
+    connectionId: string,
+  ): Promise<{ ok: true; data: { streamId: string } } | { ok: false; message: string }> {
+    return ipcRenderer.invoke(IpcChannel.PveStreamStart, { kind, connectionId })
+  },
+
+  streamStop(streamId: string): Promise<unknown> {
+    return ipcRenderer.invoke(IpcChannel.PveStreamStop, streamId)
+  },
+
   /** Trả về hàm huỷ đăng ký. Renderer bắt buộc gọi nó lúc unmount. */
   onEvent(callback: (event: PveEvent) => void): () => void {
     const handler = (_event: unknown, payload: PveEvent): void => callback(payload)

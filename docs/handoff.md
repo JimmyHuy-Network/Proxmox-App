@@ -1,4 +1,4 @@
-# Bàn giao — kết thúc giai đoạn 2
+# Bàn giao — kết thúc giai đoạn 3
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
@@ -10,7 +10,7 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0, 1, 2 hoàn tất.** 150 test đạt, typecheck và lint sạch.
+**Giai đoạn 0, 1, 2, 3 hoàn tất.** 174 test đạt, typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -18,18 +18,20 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 | Relay console loopback + giao thức termproxy | Xong, 25 test |
 | Schema chuẩn hoá + client sinh tự động (675 endpoint) | Xong, giai đoạn 1 |
 | Mock server định tuyến theo schema + contract test | Xong, giai đoạn 1 |
-| **HTTPS transport ghim vân tay chứng chỉ + probe cert** | Xong, 8 test |
-| **Vault credential** (safeStorage + JSON, không phải SQLite) | Xong, 11 test |
-| **Connection pool + máy trạng thái xác thực** | Xong, 10 test tích hợp |
-| **Năm kênh IPC + validator danh sách trắng** | Xong |
-| **UI quản lý nhiều kết nối** + dialog cert TOFU + luồng TFA | Xong |
-| **Bộ chọn cluster ở header + dashboard dữ liệu thật** | Xong (TanStack Query) |
+| HTTPS transport ghim vân tay chứng chỉ + vault + connection pool + IPC | Xong, giai đoạn 2 |
+| UI quản lý nhiều kết nối + dialog cert TOFU + luồng TFA | Xong, giai đoạn 2 |
+| **Resource poller trong main** (ref-count theo connectionId) | Xong, 4 test |
+| **Task tracker tự động** — theo dõi mọi UPID mà request trả về | Xong, 5 test |
+| **Cây tài nguyên** (Datacenter → Node → VM/CT/Storage) + lọc | Xong |
+| **`<TaskButton>` + `<TaskDock>`** — bắn hành động, log trực tiếp | Xong |
+| **`<RrdChart>`** (uPlot) + `<GuestDrawer>` xem nhanh guest | Xong |
+| **Mock: snapshot POST/DELETE/rollback + rrddata thật** | Xong, 15 test |
 
 Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
-đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts`.
+đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
 
-**Chưa làm ở giai đoạn 3:** cây tài nguyên, poller `/cluster/resources` trong main, dock
-tác vụ, biểu đồ RRD. Xem mục 6.
+**Chưa làm ở giai đoạn 4:** wizard tạo VM/CT, tab Hardware đầy đủ, clone/migrate/resize,
+`<PveGrid>`/`<PveForm>`. Xem mục 6.
 
 ### Kiểm chứng lại toàn bộ
 
@@ -156,6 +158,17 @@ tên `pve`, thành `window.pve.pve.request`. Đã làm phẳng ở giai đoạn 
 `erasableSyntaxOnly` đã bật, nhưng khi viết lớp mới rất dễ gõ `constructor(private readonly x)`
 theo quán tính. Trình biên dịch sẽ báo TS1294. Khai báo field riêng rồi gán trong thân constructor.
 
+### Side effect (hiện thông báo, gọi callback) không được đặt trong thân render
+
+`TaskButton` cần báo kết quả đúng một lần khi task chuyển sang `done`. Bản đầu tay gọi
+`message.success()`/`onDone?.()` **trực tiếp trong thân component**, bọc trong `if (... && !reported) { setReported(true); ... }`. React cho phép gọi `setState` có điều kiện trong render để suy trạng thái phái sinh (mẫu "adjusting state" trong tài liệu React), nhưng side effect thật (hiện thông báo, gọi callback ra ngoài) thì **không** — render phải thuần túy. ESLint `react-hooks` bắt được ngay. Sửa bằng cách chuyển vào `useEffect`, và dùng `useRef` (không phải `useState`) để đánh dấu "đã báo" — vì bản thân cờ đó không cần kích hoạt render nào, chỉ để chặn effect chạy lại lần hai.
+
+### `rejectUnauthorized: false` cũng ảnh hưởng SNI với địa chỉ IP
+
+`probeCertificate` từng luôn đặt `servername: host`. Với `host` là địa chỉ IP (trường hợp
+phổ biến khi thêm kết nối bằng IP thay vì tên miền), Node cảnh báo SNI không được phép là IP
+theo RFC 6066. Đã thêm kiểm tra bỏ qua `servername` khi host là IP.
+
 ---
 
 ## 3. Quyết định kiến trúc đã chốt
@@ -226,6 +239,21 @@ bản ghi kết nối là đủ; không cần bảng cert riêng như kế hoạ
 **Chưa gỡ console giả lập.** Kế hoạch nói gỡ ở giai đoạn 2. Nhưng console thật (qua relay tới
 `/termproxy`) thuộc giai đoạn 5, nên demo vẫn hữu ích để test UI console. Giữ tới giai đoạn 5.
 
+**Bỏ `/cluster/tasks` polling cho task chạy ngoài app (giai đoạn 3).** Kế hoạch (plan.md C.4)
+có nhắc poll `/cluster/tasks` mỗi 10s để dock hiện cả task khởi động từ web UI gốc, không chỉ
+từ app này. Đã bỏ qua để giữ phạm vi gọn — `TaskTracker` hiện chỉ theo dõi UPID mà chính app
+nhận được. Dễ thêm sau: một poller tương tự `ResourcePoller` gọi `/cluster/tasks`, so sánh UPID
+mới với danh sách đã biết, gọi `tracker.track()` cho những cái chưa theo dõi.
+
+**Chưa làm `/cluster/log` và tìm kiếm toàn cục (giai đoạn 3).** Plan.md Phase 3 có liệt kê.
+Bỏ qua để tập trung vào bộ ba trừu tượng cốt lõi (poller, tracker, TaskButton/RrdChart). Có thể
+thêm ở giai đoạn 4 như một tab trong Dashboard mà không ảnh hưởng kiến trúc đã dựng.
+
+**Cây tài nguyên không có chế độ "folder view".** Plan.md nhắc "server view / folder view".
+Đã làm server view (Datacenter → Node → Guest) vì đó là mặc định của Proxmox thật; folder view
+(nhóm theo pool) để sau, cấu trúc `ResourceTree` hiện đủ đơn giản để thêm chế độ hiển thị thứ hai
+mà không cần viết lại.
+
 ---
 
 ## 5. Những gì phát hiện được về schema Proxmox
@@ -284,34 +312,35 @@ hoàn toàn. Có test riêng.
 
 ---
 
-## 6. Việc tiếp theo — giai đoạn 3
+## 6. Việc tiếp theo — giai đoạn 4
 
-Mục tiêu: **cây tài nguyên, dashboard, hệ thống tác vụ**. Ước lượng 2–3 tuần.
+Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Ước lượng 4–5 tuần.
 
-1. **Poller `/cluster/resources` trong main.** Chạy trong tiến trình main (không phải renderer)
-   để tiếp tục poll cả khi cửa sổ thu nhỏ. Đẩy kết quả qua kênh `pve:event` (`kind: 'resources'`
-   — đã định nghĩa trong `packages/pve-ipc/src/events.ts`). Dùng kênh `pve:stream:start/stop`
-   (đã khai báo, chưa nối) để renderer đăng ký/hủy theo kết nối đang xem.
-2. **Cây tài nguyên bên trái** thay cho Sider tĩnh hiện tại trong `AppLayout.tsx`. Server view /
-   folder view, icon trạng thái, ô lọc. Nạp `huge.json` (8 node/400 guest) để test hiệu năng —
-   memoize mạnh, đây là đường nóng nhất.
-3. **Dock tác vụ dưới đáy** thay cho Footer tĩnh. Task tracker trong main poll
-   `/nodes/{node}/tasks/{upid}/status` + `/log`, đẩy `pve:event` (`kind: 'task'`, `'log-chunk'`).
-   Khi task xong, invalidate query key suy từ UPID (parser `parseUpid` + `upidResourceKind` đã có
-   trong `@pve/api`).
-4. **`<TaskButton>`, `<RrdChart>` (uPlot), `useTask`** — ba trừu tượng nền cho các giai đoạn sau.
-5. **Dashboard datacenter/node/guest** đầy đủ hơn (hiện mới có bảng guest cơ bản).
+1. **`<PveGrid>` / `<PveForm>`** — hai trừu tượng quyết định giai đoạn này mất 4 tuần hay 10 tuần
+   (xem mục 7 của `docs/plan.md`). Xây trước khi viết màn hình đầu tiên. Mỗi view danh sách phải
+   gói gọn dưới ~40 dòng nhờ `<PveGrid endpoint=... columns=... actions=.../>`.
+2. **Wizard tạo VM (8 tab)** và **wizard tạo CT**. Property-string codec (`@pve/api`) đã sẵn sàng
+   cho phần lớn trường đĩa/mạng; các định dạng chỉ-có-tên (`pve-qm-boot`, `pve-qm-hostpci`…) cần
+   model viết tay khi làm tới tab tương ứng.
+3. **Tab Hardware đầy đủ**: thêm/sửa/xóa đĩa, CD/DVD, mạng, CPU, RAM, PCI passthrough, USB,
+   serial, audio, EFI/TPM, cloud-init. `GuestDrawer` hiện tại (giai đoạn 3) là điểm khởi đầu tốt —
+   mở rộng nó hoặc tách thành trang riêng khi nội dung quá nhiều cho một drawer.
+4. **Clone/template/migrate/move-disk/resize-disk**, snapshot đầy đủ (đã có tạo/xóa/rollback ở
+   mock từ giai đoạn 3, cần thêm UI: cây snapshot, nút clone-from-snapshot).
+5. **Quyền theo guest**, lịch sử task theo guest.
 
-Mock đã sẵn sàng: task engine đổi trạng thái guest KHI task xong, `/tasks/{upid}/log` tôn trọng
-con trỏ, và có control API `/__mock/node/:node/offline` để test node chết.
+Mock cần bổ sung dần theo từng nhóm tính năng — endpoint nào chưa có handler riêng vẫn trả lời
+hợp lệ nhờ auto-faker, nên UI dựng được trước khi viết hành vi thật cho mock.
 
-### Điểm nối đã có sẵn cho giai đoạn 3
+### Điểm nối đã có sẵn cho giai đoạn 4
 
-- `ConnectionPool.request()` trong main là điểm vào mọi lời gọi REST — poller gọi thẳng nó.
-- Kênh `pve:event` đã đẩy được `AuthEvent`; thêm `ResourcesEvent`/`TaskEvent` chỉ là mở rộng
-  cùng cơ chế (`pushEvent` trong `index.ts`).
-- `useConnections` store + `subscribeConnectionEvents` cho thấy mẫu nhận sự kiện ở renderer.
-- Dashboard đã dùng TanStack Query với `refetchInterval` — mẫu cho các view poll khác.
+- `TaskButton` xử lý mọi hành động trả UPID — clone/migrate/resize dùng lại thẳng, không cần viết
+  lại logic theo dõi.
+- `useSelection` store (guest đang chọn) đã có; wizard/tab Hardware có thể dùng chung hoặc tách
+  store riêng nếu cần trạng thái phức tạp hơn (đang sửa dở, chưa lưu…).
+- `pveRequest`/`pveQueryKey` trong `renderer/lib/pve.ts` là mẫu chuẩn cho mọi lời gọi mới.
+- Property-string codec (`parsePropertyString`/`formatPropertyString`/`propBool`/`parseSize`)
+  trong `@pve/api` đã test kỹ với dữ liệu thật (giai đoạn 1 và đối chiếu) — dùng thẳng cho form.
 
 ---
 
@@ -381,6 +410,32 @@ lẫn lộn. `upidResourceKind` xử lý đúng nhờ prefix `vz`, nhưng **mock
 snapshot POST/DELETE** (đang dùng auto-faker), và task engine của mock nên dùng đúng các tên
 này. Khi làm task tracking giai đoạn 3, cập nhật `apps/mock-server/src/tasks/engine.ts` và thêm
 handler snapshot để test sát thực tế hơn.
+
+### Đối chiếu giai đoạn 3 với PVE 9.2.2 thật (poller, task tracker, rrddata)
+
+Sau khi dựng xong resource poller, task tracker, và rrddata cho mock, đã chạy lại với server
+thật để kiểm cả kiến trúc mới lẫn bản sửa từ phát hiện giai đoạn 2 ở trên.
+
+**`ResourcePoller` nhận đúng nhịp đầu tiên** với dữ liệu thật (5 dòng: 1 node, 1 CT, 2 storage,
+đúng như server đang có).
+
+**`vzsnapshot` được xác nhận lần thứ hai, độc lập.** Tạo snapshot thật qua `TaskTracker` trả về
+`UPID:pve:...vzsnapshot:100:root@pam:` — khớp chính xác phát hiện ở giai đoạn 2, và lần này qua
+đúng luồng mà `GuestDrawer`/`TaskButton` sẽ dùng (không phải gọi tay qua curl). Task tracker theo
+đúng ba pha `started → running → done(OK)`. Snapshot test đã xóa sạch sau khi xong.
+
+**rrddata thật có nhiều trường hơn schema/mock dự kiến, nhưng vô hại.** Node thật trả về các
+trường PSI mới của kernel (`pressurememorysome`, `pressurecpufull`…), `swaptotal`, `arcsize`…
+mà bản sinh tự động và mock của ta không có. `RrdChart` chỉ đọc đúng khóa nó cần (`cpu`, `mem`,
+`maxmem`, `disk`, `maxdisk`) nên các trường lạ bị bỏ qua an toàn — không cần cập nhật gì, nhưng
+đáng ghi lại: **đừng giả định `Object.keys(rrdPoint)` là danh sách đóng**, code phải luôn đọc
+theo tên khóa cụ thể, không lặp qua toàn bộ object.
+
+**Số điểm dữ liệu thật thay đổi theo lịch sử tích lũy, không cố định 70.** Node thật trả 59 điểm
+cho `timeframe=hour` (ít hơn 70 vì RRD chưa đầy do node mới khởi động lại gần đây), trong khi
+mock luôn trả đúng 70 (dữ liệu tổng hợp, không có khái niệm "chưa đủ lịch sử"). `RrdChart` không
+giả định số điểm cố định nên không bị ảnh hưởng — nhưng nếu sau này viết code giả định `length===70`
+ở đâu đó thì sẽ sai với dữ liệu thật.
 
 ## 8. Câu hỏi để ngỏ
 

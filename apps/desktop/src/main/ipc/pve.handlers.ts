@@ -7,6 +7,7 @@ import {
   type PveResponse,
 } from '@pve/ipc'
 import type { ConnectionPool } from '../pve/connection-pool.ts'
+import type { TaskTracker } from '../pve/task-tracker.ts'
 
 /**
  * Kênh gọi REST tới Proxmox.
@@ -66,7 +67,7 @@ function toErrorPayload(error: unknown, env: PveRequestEnvelope): PveErrorPayloa
   }
 }
 
-export function registerPveHandlers(pool: ConnectionPool): void {
+export function registerPveHandlers(pool: ConnectionPool, tasks: TaskTracker): void {
   // requestId → AbortController. AbortSignal không đi qua được IPC nên phải nối
   // thủ công qua kênh pve:cancel.
   const inflight = new Map<string, AbortController>()
@@ -97,6 +98,9 @@ export function registerPveHandlers(pool: ConnectionPool): void {
         env.params ?? {},
         controller.signal,
       )
+      // Request nào trả về UPID thì tự động theo dõi — renderer không cần đăng ký
+      // gì thêm, chỉ cần lắng nghe pve:event lọc theo UPID vừa nhận được.
+      tasks.track(env.connectionId, data)
       return { ok: true, data }
     } catch (error) {
       return { ok: false, error: toErrorPayload(error, env) }
