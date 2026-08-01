@@ -10,9 +10,9 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 đang chạy — phần 1 + Hardware editable +
-wizard tạo VM xong** (PveGrid/PveForm, snapshot, Hardware sửa được, Create VM 8 bước).
-186 test đạt, typecheck và lint sạch.
+**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 đang chạy — Hardware + wizard VM/CT xong**
+(PveGrid/PveForm, snapshot, Hardware editable, Create VM 8 bước, Create CT 7 bước).
+190 test đạt, typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -34,18 +34,18 @@ wizard tạo VM xong** (PveGrid/PveForm, snapshot, Hardware sửa được, Crea
 | **Snapshot UI đầy đủ**: tạo/liệt kê/rollback/xóa qua `PveGrid`+`PveForm`+`TaskButton` | Xong |
 | **Tab Hardware editable**: CPU/RAM, đĩa, mạng (thêm/sửa/xóa) + form tái sử dụng cho wizard | Xong |
 | **Mock PUT config**: `delete=` CSV + sync `cpus`/`maxmem`; `type=vm` = qemu∪lxc | Xong |
-| **Mock POST tạo VM** (`qmcreate`) ghi guest vào world sau khi task xong | Xong |
-| **Wizard tạo VM 8 bước** (Dashboard → Tạo VM) | Xong |
+| **Mock POST tạo VM** (`qmcreate`) / **CT** (`vzcreate`) ghi guest vào world sau task | Xong |
+| **Wizard tạo VM 8 bước** + **wizard tạo CT 7 bước** (Dashboard → Tạo mới) | Xong |
 
 Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
 đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
 
-**Chưa làm ở phần còn lại của giai đoạn 4:** wizard tạo CT, PCI/USB/serial/EFI/cloud-init
-trên Hardware, clone/migrate/resize-disk, tab Options. Xem mục 6.
+**Chưa làm ở phần còn lại của giai đoạn 4:** PCI/USB/serial/EFI/cloud-init trên Hardware,
+clone/migrate/resize-disk, tab Options. Xem mục 6.
 
-**Chưa kiểm bằng tương tác desktop thật.** Hardware + wizard được xác nhận bằng test tự động
-(186 test), typecheck, lint. Chưa tự tay click wizard/modal Hardware vì phiên cloud không
-điều khiển desktop. Nên đối chiếu bằng tay trước khi coi xong hoàn toàn.
+**Chưa kiểm bằng tương tác desktop thật.** Hardware + wizard VM/CT được xác nhận bằng test
+tự động (190 test), typecheck, lint. Chưa tự tay click vì phiên cloud không điều khiển
+desktop. Nên đối chiếu bằng tay trước khi coi xong hoàn toàn.
 
 ### Kiểm chứng lại toàn bộ
 
@@ -342,22 +342,23 @@ Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớ
 Hardware editable (CPU/RAM/đĩa/mạng) đã xong; phần việc lớn còn lại là wizard tạo mới và
 các loại thiết bị nâng cao.
 
-**Đã xong (phần 1 + Hardware + wizard VM):**
+**Đã xong (phần 1 + Hardware + wizard VM/CT):**
 1. `<PveGrid>` / `<PveForm>` — hai trừu tượng cốt lõi (xem mục 7 của `docs/plan.md`).
 2. Dashboard đọc từ store `resources` (không poll trùng `/cluster/resources`).
 3. `GuestDrawer` tabs: Tổng quan / Phần cứng / Snapshot (snapshot CRUD đầy đủ).
 4. **Hardware editable** — `HardwareTab` + form ở `renderer/features/resources/hardware/`.
    PCI/USB/serial/EFI/cloud-init vẫn mục “Khác” (chỉ đọc).
 5. Mock PUT config: `delete`, sync `cpus`/`maxmem`; `type=vm` = qemu∪lxc.
-6. **Wizard tạo VM** — `CreateVmWizard` (8 bước), nút trên Dashboard; `draftToCreateParams`
-   dựng body POST; mock `POST /nodes/{node}/qemu` → UPID `qmcreate`, guest vào world khi
-   task xong. ISO nhập tay volid (chưa có browser storage content).
+6. **Wizard tạo VM** — `CreateVmWizard` (8 bước); ISO nhập tay volid.
+7. **Wizard tạo CT** — `CreateCtWizard` (7 bước); picker `vztmpl` từ storage content
+   (+ nhập tay volid). Mock `POST /nodes/{node}/lxc` → UPID `vzcreate`.
+   Dashboard dropdown **Tạo mới** → VM / CT.
 
 **Còn lại:**
-7. **Wizard tạo CT** + picker ISO từ `/nodes/{node}/storage/{storage}/content`.
 8. **Hardware nâng cao:** PCI, USB, serial, audio, EFI/TPM, cloud-init.
 9. **Clone/template/migrate/move-disk/resize-disk** + cây snapshot lồng nhau.
-10. **Quyền theo guest**, lịch sử task theo guest, tab Options.
+10. Picker ISO cho wizard VM (giống vztmpl).
+11. **Quyền theo guest**, lịch sử task theo guest, tab Options.
 
 Mock cần bổ sung dần theo từng nhóm tính năng — endpoint nào chưa có handler riêng vẫn trả lời
 hợp lệ nhờ auto-faker, nên UI dựng được trước khi viết hành vi thật cho mock.

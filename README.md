@@ -7,7 +7,7 @@
 > chứng chỉ, TFA), và **cây tài nguyên trực tiếp**: poller `/cluster/resources` trong main,
 > dock tác vụ theo dõi UPID tự động, biểu đồ RRD (uPlot). Guest có trang chi tiết dạng tab
 > (Tổng quan / Phần cứng / Snapshot): snapshot đầy đủ, **Hardware sửa được** CPU/RAM/đĩa/mạng,
-> và **wizard tạo VM** 8 bước. Wizard tạo CT và clone/migrate vẫn đang làm.
+> **wizard tạo VM/CT**, và Hardware sửa được. Clone/migrate và Hardware nâng cao vẫn đang làm.
 
 ## Thử luồng đầy đủ
 
