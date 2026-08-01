@@ -6,8 +6,8 @@
 > động cho **675 endpoint**, máy chủ giả lập, **quản lý nhiều kết nối** đầy đủ (vault, TOFU
 > chứng chỉ, TFA), và **cây tài nguyên trực tiếp**: poller `/cluster/resources` trong main,
 > dock tác vụ theo dõi UPID tự động, biểu đồ RRD (uPlot). Guest có trang chi tiết dạng tab
-> (Tổng quan / Phần cứng / Snapshot): snapshot đầy đủ, **Hardware sửa được** CPU/RAM/đĩa/mạng.
-> Wizard tạo VM/CT vẫn đang làm.
+> (Tổng quan / Phần cứng / Snapshot): snapshot đầy đủ, **Hardware sửa được** CPU/RAM/đĩa/mạng,
+> và **wizard tạo VM** 8 bước. Wizard tạo CT và clone/migrate vẫn đang làm.
 
 ## Thử luồng đầy đủ
 
