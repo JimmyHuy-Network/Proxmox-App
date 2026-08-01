@@ -269,17 +269,54 @@ giai đoạn 2 chỉ cần cắm chúng vào tiến trình main kèm transport c
 
 ---
 
-## 7. Câu hỏi để ngỏ
+## 7. Đối chiếu với Proxmox thật (PVE 9.2.2, host đơn lẻ)
 
-1. **Phải đọc advisory `PSA-2026-00014-1` trước khi bắt đầu giai đoạn 5.** PVE 9.2 vá lỗ hổng
-   chiếm phiên VNC và roadmap nói client ngoài dùng `vncshell`/`vncproxy` phải thích ứng. Theo câu chữ
-   thì chủ yếu ảnh hưởng client nối thẳng cổng TCP VNC thô — thiết kế của ta đi qua `/vncwebsocket`
-   giống hệt web UI gốc nên nhiều khả năng không bị. Cần xác nhận.
-2. PVE 9.2 đã thêm endpoint xác minh VNC ticket do token sở hữu, dành cho termproxy. Nếu nó cho phép
-   API Token mở được terminal thì UX "một kết nối cần cả token lẫn mật khẩu" đơn giản hoá được đáng kể.
-3. **Ký số Windows** — quyết định chứng chỉ EV hay OV trước khi phát hành. Hiện installer chưa ký,
-   SmartScreen sẽ cảnh báo.
-4. Chưa có icon riêng, đang dùng icon mặc định của Electron.
-5. Nên dựng **PVE 9 lồng trong Hyper-V** chậm nhất ở giai đoạn 3 để đối chiếu với API thật.
-   Mock chắc chắn khác thực tế theo những cách không đoán trước (lỗi 596 của pveproxy, độ trễ proxy
-   giữa node, đua tranh quorum, `pvestatd` cũ dữ liệu).
+Đã đối chiếu client sinh tự động và mock với một server PVE **9.2.2** thật. Kết quả:
+
+**Schema ổn định trong dòng 9.2.x.** apidoc.js của 9.2.2 khớp **hoàn toàn** bản ghim 9.2.1 —
+449 đường dẫn, 675 endpoint, không lệch một đường nào. Bản schema đã commit dùng được cho
+cả 9.2.1 và 9.2.2.
+
+**Client sinh tự động chạy đúng với server thật**, không chỉ với mock. Gọi ~10 endpoint GET
+(`/version`, `/cluster/resources`, `/nodes`, node status, danh sách + config guest, storage,
+rrddata, tasks) đều parse đúng. Property string codec phân tích đúng cấu hình LXC thật
+(`rootfs`, `net0` với `hwaddr`). UPID nhận diện đúng. Đây là kiểm chứng độc lập — client và
+mock cùng xây từ một schema nên có nguy cơ "cùng sai"; server thật loại bỏ nghi ngờ đó.
+
+**`/version` cần đăng nhập trên thật** (trả 401), mock từng để public. Đã sửa — chỉ
+`POST /access/ticket` và `GET /access/domains` là public, khớp thật.
+
+**Node status thật giàu trường hơn mock** (`boot-info`, `ksm`, `swap`, `current-kernel`,
+`memory.available`…). Client không lỗi vì hầu hết là optional, nhưng nên làm giàu fixture
+mock dần khi dựng các màn hình tương ứng.
+
+### API Token MỞ ĐƯỢC console — câu hỏi để ngỏ #1 và #2 đã giải quyết
+
+Đã kiểm dứt điểm bằng token test (tạo rồi xóa): trên PVE 9.2.2, API Token gọi được
+`POST /nodes/{node}/termproxy`, `/lxc/{vmid}/termproxy`, `/lxc/{vmid}/vncproxy` (đều 200),
+**và mở được cả WebSocket `/vncwebsocket`** kèm bắt tay thành công (nhận `OK`). Tài liệu
+forum cũ nói `pvedaemon` từ chối token là **đã lỗi thời** với 9.2.
+
+Hai hệ quả kiến trúc:
+
+1. **Củng cố relay-in-main.** WebSocket console mở được bằng token *chỉ khi* handshake mang
+   header `Authorization` — mà trình duyệt **không** đặt được header trên WebSocket, chỉ Node
+   (`ws` trong main) làm được. Nếu renderer nối thẳng thì token vô dụng cho console. Đây là
+   thêm một lý do cứng cho kiến trúc relay trong main.
+2. **UX đơn giản hơn kế hoạch.** Không cần bắt một kết nối chỉ-token phải kèm mật khẩu để
+   dùng console. Một token là đủ cho cả API lẫn console. Bỏ được ràng buộc "kết nối cần cả
+   hai loại credential" mà kế hoạch lo ngại.
+
+*(Ticket vẫn cần cho luồng đăng nhập người dùng thường và cho TFA — token chỉ là lựa chọn
+thêm, không thay thế.)*
+
+## 8. Câu hỏi để ngỏ
+
+1. **Advisory `PSA-2026-00014-1`** — nên đọc trước giai đoạn 5. Nhưng đối chiếu trên đã cho
+   thấy luồng `/vncwebsocket` (đúng cái web UI gốc dùng) hoạt động bình thường trên 9.2.2, kể
+   cả với token, nên nhiều khả năng không bị ảnh hưởng. Rủi ro đã giảm đáng kể.
+2. **Ký số Windows** — quyết định chứng chỉ EV hay OV trước khi phát hành. Hiện installer chưa
+   ký, SmartScreen sẽ cảnh báo.
+3. Chưa có icon riêng, đang dùng icon mặc định của Electron.
+4. Có sẵn một server PVE 9.2.2 thật (host đơn lẻ, 1 LXC) để đối chiếu ở các giai đoạn sau.
+   Địa chỉ và credential do người dùng cấp qua chat, **không lưu trong repo**.

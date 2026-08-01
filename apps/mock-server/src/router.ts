@@ -63,8 +63,14 @@ class HttpError extends Error {
   }
 }
 
-/** Những endpoint không cần đăng nhập, giống hệt Proxmox thật. */
-const PUBLIC_ENDPOINTS = new Set(['POST /access/ticket', 'GET /access/domains', 'GET /version'])
+/**
+ * Những endpoint không cần đăng nhập.
+ *
+ * Đối chiếu với PVE 9.2.2 thật: **chỉ đúng hai** endpoint này là public. `/version`
+ * trông có vẻ vô hại nhưng máy chủ thật trả 401 khi chưa đăng nhập — từng để nó
+ * public là mock dễ dãi hơn thật, che mất lỗi gọi thiếu xác thực.
+ */
+const PUBLIC_ENDPOINTS = new Set(['POST /access/ticket', 'GET /access/domains'])
 
 export function registerSchemaRoutes(
   app: FastifyInstance,
