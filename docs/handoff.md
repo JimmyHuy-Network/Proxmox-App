@@ -1,4 +1,4 @@
-# Bàn giao — kết thúc giai đoạn 1
+# Bàn giao — kết thúc giai đoạn 2
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
@@ -10,25 +10,26 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0 và 1 hoàn tất.** 121 test đạt, typecheck và lint sạch.
+**Giai đoạn 0, 1, 2 hoàn tất.** 150 test đạt, typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
-| npm workspaces + TypeScript strict | Xong |
-| Electron 43 + electron-vite 5 + Vite 7 + React 19 | Xong |
-| Cấu hình bảo mật (contextIsolation, sandbox, CSP, chặn điều hướng) | Xong, có kiểm tự động |
-| antd 6 theme tối gọn + TanStack Router + i18n tiếng Việt | Xong |
-| Giao thức termproxy + relay console loopback | Xong, 25 test |
-| electron-builder ra installer NSIS | Xong, 96 MB |
-| **Schema Proxmox chuẩn hoá** (449 đường dẫn / 675 endpoint) | Xong, 13 test canh giữ |
-| **Client có kiểu sinh tự động** | Xong, 675 endpoint, 686 KB |
-| **Codec property string** + 44 sub-schema sinh tự động | Xong, 20 test |
-| **Mock server định tuyến theo schema** | Xong, phục vụ đủ 675 endpoint |
-| **Contract test** quét 340 endpoint GET | Xong, đạt hết |
-| **Kiểm chứng đầu-cuối client ↔ mock** | Xong, 28 test |
+| Bộ khung Electron + bảo mật (sandbox, CSP) + i18n tiếng Việt | Xong, giai đoạn 0 |
+| Relay console loopback + giao thức termproxy | Xong, 25 test |
+| Schema chuẩn hoá + client sinh tự động (675 endpoint) | Xong, giai đoạn 1 |
+| Mock server định tuyến theo schema + contract test | Xong, giai đoạn 1 |
+| **HTTPS transport ghim vân tay chứng chỉ + probe cert** | Xong, 8 test |
+| **Vault credential** (safeStorage + JSON, không phải SQLite) | Xong, 11 test |
+| **Connection pool + máy trạng thái xác thực** | Xong, 10 test tích hợp |
+| **Năm kênh IPC + validator danh sách trắng** | Xong |
+| **UI quản lý nhiều kết nối** + dialog cert TOFU + luồng TFA | Xong |
+| **Bộ chọn cluster ở header + dashboard dữ liệu thật** | Xong (TanStack Query) |
 
-**Chưa có giao diện quản lý kết nối.** Vault, TOFU chứng chỉ, TFA và năm kênh IPC thuộc
-giai đoạn 2.
+Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
+đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts`.
+
+**Chưa làm ở giai đoạn 3:** cây tài nguyên, poller `/cluster/resources` trong main, dock
+tác vụ, biểu đồ RRD. Xem mục 6.
 
 ### Kiểm chứng lại toàn bộ
 
@@ -130,6 +131,31 @@ bộ kiểm danh sách trắng của IPC coi như hợp lệ. Có test canh riê
 không bao giờ gán được (29 lỗi biên dịch). Bỏ `as const` thì khoá vẫn được suy luận đầy đủ — đó là
 thứ `t()` cần — còn giá trị nới thành `string`.
 
+### `rejectUnauthorized: false` VÔ HIỆU HÓA `checkServerIdentity`
+
+Cái bẫy nguy hiểm nhất giai đoạn 2. Để ghim vân tay chứng chỉ tự ký, thoạt nhìn có vẻ đúng khi
+đặt `rejectUnauthorized: false` (bỏ qua kiểm CA) rồi so vân tay trong `checkServerIdentity`. Nhưng
+khi `rejectUnauthorized` là false, Node **bỏ qua luôn** `checkServerIdentity` — nên cert sai vẫn
+lọt, và việc ghim vân tay chỉ trông như chạy. Phải kiểm vân tay ở **tầng socket** (`secureConnect`,
+`getPeerCertificate`). Xem `https-transport.ts` → `verifyPinnedSocket`. Có test bắt đúng lỗi này.
+
+### Từ chối `AbortSignal` đã abort sẵn phải reject, không phải destroy-rồi-return
+
+Trong transport thủ công bằng `node:https`, nếu signal đã abort trước khi gửi, gọi `req.destroy()`
+rồi `return` khỏi executor mà **không** `reject()` thì promise không bao giờ settle → treo tới
+timeout. Phải `reject()` trước.
+
+### `window.pve` là bridge phẳng, không lồng `pve.pve`
+
+Giai đoạn 0 lỡ đặt `request/cancel/onEvent` trong một khoá `pve` lồng bên trong object expose dưới
+tên `pve`, thành `window.pve.pve.request`. Đã làm phẳng ở giai đoạn 2: mọi thứ ở top level —
+`window.pve.request`, `window.pve.vault`, `window.pve.console`, `window.pve.onEvent`.
+
+### Node từ chối parameter property (nhắc lại, dễ tái phạm)
+
+`erasableSyntaxOnly` đã bật, nhưng khi viết lớp mới rất dễ gõ `constructor(private readonly x)`
+theo quán tính. Trình biên dịch sẽ báo TS1294. Khai báo field riêng rồi gán trong thân constructor.
+
 ---
 
 ## 3. Quyết định kiến trúc đã chốt
@@ -187,6 +213,18 @@ làm hỏng console demo đang chạy mà không được gì. Fake shell vẫn 
 **Property string: sinh tự động thay vì viết tay 15 model.** Xem mục 5 — Proxmox nhúng sẵn
 sub-schema trong `apidoc.js` nên phần lớn sinh được. Chỉ còn ~5 định dạng chỉ-có-tên phải viết
 tay, và chưa cần cho tới giai đoạn 4.
+
+**Vault dùng JSON + safeStorage, KHÔNG dùng SQLite (giai đoạn 2).** Kế hoạch nói `better-sqlite3`.
+Nhưng chỉ có vài chục kết nối, không cần SQL, và better-sqlite3 là native module phải rebuild theo
+ABI của Electron — một nguồn phức tạp lớn không đáng. Đã dùng một tệp `vault.json` trong `userData`,
+secret mã hóa bằng `safeStorage` (DPAPI) lưu base64. Encryptor được trừu tượng hóa nên vault test
+được không cần Electron. `better-sqlite3` chưa cài; không cần cho tới khi có nhu cầu truy vấn thật.
+
+**Cert store gộp vào vault, không tách riêng.** Với ghim theo từng kết nối, lưu vân tay ngay trong
+bản ghi kết nối là đủ; không cần bảng cert riêng như kế hoạch phác.
+
+**Chưa gỡ console giả lập.** Kế hoạch nói gỡ ở giai đoạn 2. Nhưng console thật (qua relay tới
+`/termproxy`) thuộc giai đoạn 5, nên demo vẫn hữu ích để test UI console. Giữ tới giai đoạn 5.
 
 ---
 
@@ -246,26 +284,34 @@ hoàn toàn. Có test riêng.
 
 ---
 
-## 6. Việc tiếp theo — giai đoạn 2
+## 6. Việc tiếp theo — giai đoạn 3
 
-Mục tiêu: **quản lý nhiều kết nối, xác thực, IPC, TLS**. Ước lượng 2 tuần.
+Mục tiêu: **cây tài nguyên, dashboard, hệ thống tác vụ**. Ước lượng 2–3 tuần.
 
-1. **Vault**: `better-sqlite3` (chưa cài — là native module, cần `electron-rebuild`; nhớ đặt
-   ở `dependencies` chứ không phải dev để electron-builder đóng gói kèm) + `safeStorage`
-   dạng async. **Không bao giờ** ghi ticket hay CSRF token xuống đĩa.
-2. **Năm kênh IPC** như mô tả trong `packages/pve-ipc/src/channels.ts`. Bộ kiểm danh sách
-   trắng dùng `findEndpoint()` của `@pve/api` — đã có sẵn và đã test.
-3. **TOFU chứng chỉ**: `https.Agent` với `checkServerIdentity` tuỳ biến so khớp
-   `fingerprint256`. Xoá `apps/mock-server/tls/` rồi khởi động lại mock là mô phỏng được
-   tình huống vân tay đổi.
-4. **Luồng TFA**: mock đã hỗ trợ sẵn — tài khoản `tfa@pve` trả `NeedTFA: 1`, mã OTP `123456`.
-5. **Giao diện quản lý kết nối** + thanh chuyển cluster. Chạy mock hai lần trên hai cổng
-   khác nhau để giả lập hai cluster.
-6. **Gỡ bỏ** phiên console giả lập trong `apps/desktop/src/main/ipc/console.handlers.ts`
-   (đã đánh dấu `GỠ BỎ`) khi kết nối thật đã hoạt động.
+1. **Poller `/cluster/resources` trong main.** Chạy trong tiến trình main (không phải renderer)
+   để tiếp tục poll cả khi cửa sổ thu nhỏ. Đẩy kết quả qua kênh `pve:event` (`kind: 'resources'`
+   — đã định nghĩa trong `packages/pve-ipc/src/events.ts`). Dùng kênh `pve:stream:start/stop`
+   (đã khai báo, chưa nối) để renderer đăng ký/hủy theo kết nối đang xem.
+2. **Cây tài nguyên bên trái** thay cho Sider tĩnh hiện tại trong `AppLayout.tsx`. Server view /
+   folder view, icon trạng thái, ô lọc. Nạp `huge.json` (8 node/400 guest) để test hiệu năng —
+   memoize mạnh, đây là đường nóng nhất.
+3. **Dock tác vụ dưới đáy** thay cho Footer tĩnh. Task tracker trong main poll
+   `/nodes/{node}/tasks/{upid}/status` + `/log`, đẩy `pve:event` (`kind: 'task'`, `'log-chunk'`).
+   Khi task xong, invalidate query key suy từ UPID (parser `parseUpid` + `upidResourceKind` đã có
+   trong `@pve/api`).
+4. **`<TaskButton>`, `<RrdChart>` (uPlot), `useTask`** — ba trừu tượng nền cho các giai đoạn sau.
+5. **Dashboard datacenter/node/guest** đầy đủ hơn (hiện mới có bảng guest cơ bản).
 
-Lớp `TicketAuthProvider` và `TokenAuthProvider` đã viết xong và đã test trong `@pve/api` —
-giai đoạn 2 chỉ cần cắm chúng vào tiến trình main kèm transport có ghim chứng chỉ.
+Mock đã sẵn sàng: task engine đổi trạng thái guest KHI task xong, `/tasks/{upid}/log` tôn trọng
+con trỏ, và có control API `/__mock/node/:node/offline` để test node chết.
+
+### Điểm nối đã có sẵn cho giai đoạn 3
+
+- `ConnectionPool.request()` trong main là điểm vào mọi lời gọi REST — poller gọi thẳng nó.
+- Kênh `pve:event` đã đẩy được `AuthEvent`; thêm `ResourcesEvent`/`TaskEvent` chỉ là mở rộng
+  cùng cơ chế (`pushEvent` trong `index.ts`).
+- `useConnections` store + `subscribeConnectionEvents` cho thấy mẫu nhận sự kiện ở renderer.
+- Dashboard đã dùng TanStack Query với `refetchInterval` — mẫu cho các view poll khác.
 
 ---
 

@@ -1,12 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannel } from '@pve/ipc'
 import type {
+  ConnectionInput,
+  ConnectionSummary,
   ConsoleOpenRequest,
   ConsoleOpenResult,
   PveEvent,
   PveHttpMethod,
   PveResponse,
+  TestConnectionResult,
 } from '@pve/ipc'
+
+type VaultReply<T> = { ok: true; data: T } | { ok: false; message: string }
+/** Kết quả mở kết nối, có thể cần xác nhận cert hoặc nhập OTP. */
+type EstablishReply =
+  | { status: 'ok' }
+  | { status: 'cert-untrusted'; cert: TestConnectionResult extends { cert: infer C } ? C : never }
+  | { status: 'tfa-challenge'; challenge: string }
+  | { status: 'failed'; message: string }
 
 /**
  * Cầu nối giữa renderer và main. Cố ý giữ thật mỏng.
@@ -19,35 +30,62 @@ import type {
  * và `contextBridge` — không có Node, không có `fs`, không có `require` tuỳ ý.
  */
 const api = {
-  pve: {
-    request<T = unknown>(
-      connectionId: string,
-      method: PveHttpMethod,
-      path: string,
-      params?: Record<string, unknown>,
-    ): Promise<PveResponse<T>> {
-      // requestId do preload sinh để renderer không tự đặt trùng nhau được.
-      const requestId = crypto.randomUUID()
-      return ipcRenderer.invoke(IpcChannel.PveRequest, {
-        connectionId,
-        method,
-        path,
-        params,
-        requestId,
-      })
-    },
+  /** Gọi REST tới Proxmox. Main điền tham số và giữ credential. */
+  request<T = unknown>(
+    connectionId: string,
+    method: PveHttpMethod,
+    path: string,
+    params?: Record<string, unknown>,
+  ): Promise<PveResponse<T>> {
+    // requestId do preload sinh để renderer không tự đặt trùng nhau được.
+    const requestId = crypto.randomUUID()
+    return ipcRenderer.invoke(IpcChannel.PveRequest, {
+      connectionId,
+      method,
+      path,
+      params,
+      requestId,
+    })
+  },
 
-    cancel(requestId: string): Promise<void> {
-      return ipcRenderer.invoke(IpcChannel.PveCancel, requestId)
-    },
+  cancel(requestId: string): Promise<void> {
+    return ipcRenderer.invoke(IpcChannel.PveCancel, requestId)
+  },
 
-    /** Trả về hàm huỷ đăng ký. Renderer bắt buộc gọi nó lúc unmount. */
-    onEvent(callback: (event: PveEvent) => void): () => void {
-      const handler = (_event: unknown, payload: PveEvent): void => callback(payload)
-      ipcRenderer.on(IpcChannel.PveEvent, handler)
-      return () => {
-        ipcRenderer.off(IpcChannel.PveEvent, handler)
-      }
+  /** Trả về hàm huỷ đăng ký. Renderer bắt buộc gọi nó lúc unmount. */
+  onEvent(callback: (event: PveEvent) => void): () => void {
+    const handler = (_event: unknown, payload: PveEvent): void => callback(payload)
+    ipcRenderer.on(IpcChannel.PveEvent, handler)
+    return () => {
+      ipcRenderer.off(IpcChannel.PveEvent, handler)
+    }
+  },
+
+  /** Quản lý kho kết nối nhiều cluster và vòng đời xác thực. */
+  vault: {
+    list(): Promise<VaultReply<ConnectionSummary[]>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'list' })
+    },
+    upsert(input: ConnectionInput): Promise<VaultReply<ConnectionSummary>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'upsert', input })
+    },
+    remove(id: string): Promise<VaultReply<boolean>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'remove', id })
+    },
+    test(input: ConnectionInput): Promise<VaultReply<TestConnectionResult>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'test', input })
+    },
+    connect(id: string): Promise<VaultReply<EstablishReply>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'connect', id })
+    },
+    completeTfa(id: string, code: string): Promise<VaultReply<EstablishReply>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'completeTfa', id, code })
+    },
+    trustCert(id: string, fingerprint: string): Promise<VaultReply<EstablishReply>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'trustCert', id, fingerprint })
+    },
+    disconnect(id: string): Promise<VaultReply<null>> {
+      return ipcRenderer.invoke(IpcChannel.Vault, { action: 'disconnect', id })
     },
   },
 

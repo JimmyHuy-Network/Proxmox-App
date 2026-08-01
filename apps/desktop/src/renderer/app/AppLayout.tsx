@@ -1,10 +1,61 @@
-import { useState } from 'react'
-import { Layout, Menu, Space, Typography, theme } from 'antd'
-import { CodeOutlined, DashboardOutlined, DownOutlined, UpOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import { Badge, Dropdown, Layout, Menu, Space, Typography, theme } from 'antd'
+import {
+  ApiOutlined,
+  CodeOutlined,
+  DashboardOutlined,
+  DownOutlined,
+  UpOutlined,
+} from '@ant-design/icons'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import type { ConnectionPhase } from '@pve/ipc'
+import { subscribeConnectionEvents, useConnections } from '../stores/connections'
 
 const { Sider, Header, Content, Footer } = Layout
+
+const PHASE_STATUS: Record<ConnectionPhase, 'success' | 'processing' | 'error' | 'default' | 'warning'> = {
+  idle: 'default',
+  connecting: 'processing',
+  'cert-challenge': 'warning',
+  'tfa-challenge': 'warning',
+  authenticated: 'success',
+  renewing: 'processing',
+  degraded: 'warning',
+  failed: 'error',
+}
+
+/** Bộ chọn kết nối trên header — chuyển qua lại giữa các cluster đã cấu hình. */
+function ConnectionSwitcher(): React.JSX.Element | null {
+  const { connections, activeId, phases, setActive } = useConnections()
+  const active = connections.find((c) => c.id === activeId)
+
+  if (connections.length === 0) return null
+
+  return (
+    <Dropdown
+      menu={{
+        items: connections.map((c) => ({
+          key: c.id,
+          label: (
+            <Space>
+              <Badge status={PHASE_STATUS[phases[c.id] ?? 'idle']} />
+              {c.name}
+            </Space>
+          ),
+          onClick: () => setActive(c.id),
+        })),
+      }}
+    >
+      <Space style={{ cursor: 'pointer' }}>
+        <ApiOutlined />
+        {active ? active.name : '—'}
+        <Badge status={PHASE_STATUS[(active && phases[active.id]) || 'idle']} />
+        <DownOutlined style={{ fontSize: 10 }} />
+      </Space>
+    </Dropdown>
+  )
+}
 
 /**
  * Khung giao diện chính, phỏng theo bố cục của Proxmox web UI:
@@ -18,6 +69,14 @@ export function AppLayout(): React.JSX.Element {
   const { token } = theme.useToken()
   const [dockOpen, setDockOpen] = useState(false)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const refresh = useConnections((s) => s.refresh)
+
+  // Nạp danh sách kết nối và lắng nghe sự kiện đổi pha xác thực từ main.
+  useEffect(() => {
+    void refresh()
+    const unsubscribe = subscribeConnectionEvents()
+    return unsubscribe
+  }, [refresh])
 
   return (
     <Layout style={{ height: '100vh' }}>
@@ -39,6 +98,9 @@ export function AppLayout(): React.JSX.Element {
             {t('app.tagline')}
           </Typography.Text>
         </Space>
+        <div style={{ marginInlineStart: 'auto' }}>
+          <ConnectionSwitcher />
+        </div>
       </Header>
 
       <Layout>
@@ -57,6 +119,11 @@ export function AppLayout(): React.JSX.Element {
                 key: '/',
                 icon: <DashboardOutlined />,
                 label: <Link to="/">{t('nav.dashboard')}</Link>,
+              },
+              {
+                key: '/connections',
+                icon: <ApiOutlined />,
+                label: <Link to="/connections">{t('nav.connections')}</Link>,
               },
               {
                 key: '/console',

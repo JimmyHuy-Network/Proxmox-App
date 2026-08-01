@@ -2,9 +2,23 @@
 
 Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: Giai đoạn 1 xong.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
-> động cho toàn bộ **675 endpoint**, và một máy chủ Proxmox giả lập phục vụ đủ ngần ấy
-> endpoint. Chưa có giao diện quản lý kết nối — phần đó thuộc giai đoạn 2.
+> **Trạng thái: Giai đoạn 2 xong.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
+> động cho **675 endpoint**, máy chủ giả lập, và **quản lý nhiều kết nối** đầy đủ: vault mã
+> hóa credential, ghim vân tay chứng chỉ (TOFU), xác thực hai lớp, và dashboard dữ liệu thật.
+> Cây tài nguyên và hệ thống tác vụ thuộc giai đoạn 3.
+
+## Thử luồng kết nối
+
+Chạy mock server rồi mở app, vào tab **Kết nối** → **Thêm kết nối**:
+
+```bash
+npm run dev:mock
+```
+
+Rồi trong app (một terminal khác `npm run dev`), thêm kết nối tới `127.0.0.1:8006`,
+tài khoản `root@pam`, mật khẩu bất kỳ (trừ `sai`). App sẽ hiện dialog xác nhận vân tay
+chứng chỉ tự ký — bấm tin tưởng — rồi dashboard hiển thị node/VM/container thật từ mock.
+Thử tài khoản `tfa@pve` để xem luồng nhập OTP (mã `123456`).
 
 ## Chạy thử
 

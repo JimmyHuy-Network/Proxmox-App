@@ -1,13 +1,25 @@
+import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { IpcChannel } from '@pve/ipc'
+import { IpcChannel, type AuthEvent } from '@pve/ipc'
 import { installCsp } from './security/csp'
 import { ConsoleRelayServer } from './console/relay-server'
 import { registerConsoleHandlers } from './ipc/console.handlers'
+import { registerPveHandlers } from './ipc/pve.handlers'
+import { registerVaultHandlers } from './ipc/vault.handlers'
+import { SafeStorageEncryptor } from './security/encryptor'
+import { Vault } from './security/vault'
+import { ConnectionPool } from './pve/connection-pool'
 import { createMainWindow, installNavigationGuards, openExternalLink } from './window'
 
 const isDev = !app.isPackaged
 const relay = new ConsoleRelayServer()
+
+/** Đẩy một sự kiện tới renderer của cửa sổ chính (nếu có). */
+function pushEvent(event: AuthEvent): void {
+  const [window] = BrowserWindow.getAllWindows()
+  window?.webContents.send(IpcChannel.PveEvent, event)
+}
 
 // Một tiến trình duy nhất: mở app lần hai sẽ dựng lại cửa sổ đang có thay vì tạo
 // tiến trình mới. Quan trọng vì main giữ trạng thái xác thực và các poller.
@@ -32,9 +44,20 @@ async function bootstrap(): Promise<void> {
   installNavigationGuards()
   installCsp(process.env['ELECTRON_RENDERER_URL'])
 
+  // Kho kết nối + connection pool. Vault nằm trong userData; secret mã hóa bằng
+  // DPAPI (safeStorage), ticket/CSRF chỉ giữ trong bộ nhớ pool.
+  const vault = new Vault(join(app.getPath('userData'), 'vault.json'), new SafeStorageEncryptor())
+  const pool = new ConnectionPool(vault, (id, phase, message) => {
+    pushEvent({ kind: 'auth', connectionId: id, phase: phase as AuthEvent['phase'], ...(message ? { message } : {}) })
+  })
+
   await relay.start()
   registerConsoleHandlers(relay)
+  registerPveHandlers(pool)
+  registerVaultHandlers(vault, pool)
   registerAppHandlers()
+
+  app.on('will-quit', () => pool.closeAll())
 
   app.on('browser-window-created', (_event, window) => {
     optimizer.watchWindowShortcuts(window)

@@ -2,6 +2,7 @@ import { createHashHistory, createRootRoute, createRoute, createRouter } from '@
 import { AppLayout } from './AppLayout'
 import { Dashboard } from '../routes/Dashboard'
 import { ConsolePage } from '../routes/ConsolePage'
+import { ConnectionsPage } from '../features/connections/ConnectionsPage'
 
 const rootRoute = createRootRoute({ component: AppLayout })
 
@@ -11,13 +12,19 @@ const dashboardRoute = createRoute({
   component: Dashboard,
 })
 
+const connectionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/connections',
+  component: ConnectionsPage,
+})
+
 const consoleRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/console',
   component: ConsolePage,
 })
 
-const routeTree = rootRoute.addChildren([dashboardRoute, consoleRoute])
+const routeTree = rootRoute.addChildren([dashboardRoute, connectionsRoute, consoleRoute])
 
 export const router = createRouter({
   routeTree,
