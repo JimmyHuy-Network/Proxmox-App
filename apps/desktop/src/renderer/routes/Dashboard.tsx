@@ -1,23 +1,12 @@
-import { Button, Card, Empty, Flex, Statistic, Table, Tag, Typography } from 'antd'
-import { ApiOutlined } from '@ant-design/icons'
+import { Button, Card, Empty, Flex, Input, Statistic, Table, Tag, Typography } from 'antd'
+import { ApiOutlined, SearchOutlined } from '@ant-design/icons'
 import { useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConnections } from '../stores/connections'
-import { pveQueryKey, pveRequest } from '../lib/pve'
-
-interface ClusterResource {
-  id: string
-  type: string
-  node?: string
-  name?: string
-  status?: string
-  vmid?: number
-  maxcpu?: number
-  cpu?: number
-  mem?: number
-  maxmem?: number
-}
+import { useClusterResources } from '../hooks/useClusterResources'
+import { useSelection } from '../stores/selection'
+import { isGuest, type ClusterResource } from '../features/resources/types'
 
 /** Định dạng byte sang đơn vị đọc được. */
 function fmtBytes(n: number | undefined): string {
@@ -36,16 +25,16 @@ export function Dashboard(): React.JSX.Element {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { activeId, phases } = useConnections()
+  const select = useSelection((s) => s.select)
+  const [query, setQuery] = useState('')
 
   const connected = activeId !== null && phases[activeId] === 'authenticated'
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: activeId ? pveQueryKey(activeId, 'GET', '/cluster/resources') : ['pve', 'none'],
-    queryFn: () => pveRequest<ClusterResource[]>(activeId!, 'GET', '/cluster/resources'),
-    enabled: connected,
-    // Trang tổng quan của Proxmox poll liên tục; làm mới mỗi 5 giây.
-    refetchInterval: 5000,
-  })
+  // Không tự poll ở đây — `ResourcePoller` trong main đã poll `/cluster/resources`
+  // và đẩy sự kiện; đọc thẳng từ store dùng chung với cây tài nguyên tránh tạo
+  // thêm một nguồn dữ liệu lệch pha (xem stores/resources.ts).
+  const { resources, at } = useClusterResources(connected ? activeId : null)
+  const isLoading = connected && at === null
 
   if (!connected) {
     return (
@@ -77,13 +66,21 @@ export function Dashboard(): React.JSX.Element {
     )
   }
 
-  const rows = data ?? []
+  const rows = resources as ClusterResource[]
   const nodes = rows.filter((r) => r.type === 'node')
-  const vms = rows.filter((r) => r.type === 'qemu')
-  const cts = rows.filter((r) => r.type === 'lxc')
-  const running = [...vms, ...cts].filter((r) => r.status === 'running').length
+  const guests = rows.filter(isGuest)
+  const running = guests.filter((r) => r.status === 'running').length
 
-  const guests = [...vms, ...cts]
+  const q = query.trim().toLowerCase()
+  const filteredGuests =
+    q === ''
+      ? guests
+      : guests.filter(
+          (r) =>
+            (r.name?.toLowerCase().includes(q) ?? false) ||
+            String(r.vmid ?? '').includes(q) ||
+            (r.node?.toLowerCase().includes(q) ?? false),
+        )
 
   return (
     <Flex vertical gap={16}>
@@ -91,70 +88,92 @@ export function Dashboard(): React.JSX.Element {
         {t('dashboard.title')}
       </Typography.Title>
 
-      {error ? (
-        <Card>
-          <Typography.Text type="danger">{(error as Error).message}</Typography.Text>
+      <Flex gap={16} wrap>
+        <Card style={{ flex: 1, minWidth: 140 }}>
+          <Statistic title="Node" value={nodes.length} loading={isLoading} />
         </Card>
-      ) : (
-        <>
-          <Flex gap={16} wrap>
-            <Card style={{ flex: 1, minWidth: 140 }}>
-              <Statistic title="Node" value={nodes.length} loading={isLoading} />
-            </Card>
-            <Card style={{ flex: 1, minWidth: 140 }}>
-              <Statistic title="VM (QEMU)" value={vms.length} loading={isLoading} />
-            </Card>
-            <Card style={{ flex: 1, minWidth: 140 }}>
-              <Statistic title="Container (LXC)" value={cts.length} loading={isLoading} />
-            </Card>
-            <Card style={{ flex: 1, minWidth: 140 }}>
-              <Statistic
-                title={t('status.running')}
-                value={running}
-                loading={isLoading}
-                valueStyle={{ color: '#52c41a' }}
-              />
-            </Card>
-          </Flex>
+        <Card style={{ flex: 1, minWidth: 140 }}>
+          <Statistic title="VM (QEMU)" value={guests.filter((r) => r.type === 'qemu').length} loading={isLoading} />
+        </Card>
+        <Card style={{ flex: 1, minWidth: 140 }}>
+          <Statistic title="Container (LXC)" value={guests.filter((r) => r.type === 'lxc').length} loading={isLoading} />
+        </Card>
+        <Card style={{ flex: 1, minWidth: 140 }}>
+          <Statistic
+            title={t('status.running')}
+            value={running}
+            loading={isLoading}
+            valueStyle={{ color: '#52c41a' }}
+          />
+        </Card>
+      </Flex>
 
-          <Card title="Máy ảo và container" size="small">
-            <Table<ClusterResource>
-              size="small"
-              loading={isLoading}
-              rowKey="id"
-              pagination={false}
-              dataSource={guests}
-              columns={[
-                { title: 'VMID', dataIndex: 'vmid', width: 80 },
-                { title: 'Tên', dataIndex: 'name' },
-                {
-                  title: 'Loại',
-                  dataIndex: 'type',
-                  width: 90,
-                  render: (v: string) => <Tag>{v === 'qemu' ? 'VM' : 'CT'}</Tag>,
-                },
-                { title: 'Node', dataIndex: 'node', width: 100 },
-                {
-                  title: 'Trạng thái',
-                  dataIndex: 'status',
-                  width: 110,
-                  render: (s: string) => (
-                    <Tag color={s === 'running' ? 'green' : 'default'}>
-                      {s === 'running' ? t('status.running') : t('status.stopped')}
-                    </Tag>
-                  ),
-                },
-                {
-                  title: 'RAM',
-                  dataIndex: 'mem',
-                  width: 140,
-                  render: (mem: number, r) => `${fmtBytes(mem)} / ${fmtBytes(r.maxmem)}`,
-                },
-              ]}
-            />
-          </Card>
-        </>
-      )}
+      <Card
+        title="Máy ảo và container"
+        size="small"
+        extra={
+          <Input
+            allowClear
+            size="small"
+            style={{ width: 220 }}
+            prefix={<SearchOutlined />}
+            placeholder={t('common.search') ?? 'Tìm kiếm'}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        }
+      >
+        <Table<ClusterResource>
+          size="small"
+          loading={isLoading}
+          rowKey="id"
+          pagination={filteredGuests.length > 20 ? { pageSize: 20, size: 'small' } : false}
+          dataSource={filteredGuests}
+          onRow={(r) => ({ onClick: () => select(r), style: { cursor: 'pointer' } })}
+          columns={[
+            { title: 'VMID', dataIndex: 'vmid', width: 80, sorter: (a, b) => (a.vmid ?? 0) - (b.vmid ?? 0) },
+            { title: 'Tên', dataIndex: 'name', sorter: (a, b) => (a.name ?? '').localeCompare(b.name ?? '') },
+            {
+              title: 'Loại',
+              dataIndex: 'type',
+              width: 90,
+              filters: [
+                { text: 'VM', value: 'qemu' },
+                { text: 'CT', value: 'lxc' },
+              ],
+              onFilter: (value, r) => r.type === value,
+              render: (v: string) => <Tag>{v === 'qemu' ? 'VM' : 'CT'}</Tag>,
+            },
+            {
+              title: 'Node',
+              dataIndex: 'node',
+              width: 100,
+              sorter: (a, b) => (a.node ?? '').localeCompare(b.node ?? ''),
+            },
+            {
+              title: 'Trạng thái',
+              dataIndex: 'status',
+              width: 110,
+              filters: [
+                { text: t('status.running'), value: 'running' },
+                { text: t('status.stopped'), value: 'stopped' },
+              ],
+              onFilter: (value, r) => r.status === value,
+              render: (s: string) => (
+                <Tag color={s === 'running' ? 'green' : 'default'}>
+                  {s === 'running' ? t('status.running') : t('status.stopped')}
+                </Tag>
+              ),
+            },
+            {
+              title: 'RAM',
+              dataIndex: 'mem',
+              width: 140,
+              render: (mem: number, r) => `${fmtBytes(mem)} / ${fmtBytes(r.maxmem)}`,
+            },
+          ]}
+        />
+      </Card>
     </Flex>
   )
 }

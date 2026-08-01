@@ -1,4 +1,4 @@
-# Bàn giao — kết thúc giai đoạn 3
+# Bàn giao — giữa giai đoạn 4
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
@@ -10,7 +10,9 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0, 1, 2, 3 hoàn tất.** 174 test đạt, typecheck và lint sạch.
+**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 đang chạy — phần 1 xong** (hai trừu tượng
+`<PveGrid>`/`<PveForm>`, trang chi tiết guest có tab, snapshot UI đầy đủ). 174 test đạt,
+typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -26,12 +28,23 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 | **`<TaskButton>` + `<TaskDock>`** — bắn hành động, log trực tiếp | Xong |
 | **`<RrdChart>`** (uPlot) + `<GuestDrawer>` xem nhanh guest | Xong |
 | **Mock: snapshot POST/DELETE/rollback + rrddata thật** | Xong, 15 test |
+| **`<PveGrid>` / `<PveForm>`** — hai trừu tượng cốt lõi giai đoạn 4 | Xong, giai đoạn 4 phần 1 |
+| **Trang tổng quan VM/CT** (Dashboard) đọc từ store `resources`, không poll trùng | Xong |
+| **Guest detail có tab**: Tổng quan / Phần cứng (đọc `/config`) / Snapshot | Xong |
+| **Snapshot UI đầy đủ**: tạo/liệt kê/rollback/xóa qua `PveGrid`+`PveForm`+`TaskButton` | Xong |
 
 Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
 đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
 
-**Chưa làm ở giai đoạn 4:** wizard tạo VM/CT, tab Hardware đầy đủ, clone/migrate/resize,
-`<PveGrid>`/`<PveForm>`. Xem mục 6.
+**Chưa làm ở phần còn lại của giai đoạn 4:** wizard tạo VM/CT, tab Hardware có thể sửa
+(hiện chỉ đọc), clone/migrate/resize-disk, tab Options. Xem mục 6.
+
+**Chưa kiểm bằng tương tác desktop thật.** Phần 1 giai đoạn 4 được xác nhận bằng test tự
+động (174 test, gồm contract test snapshot POST/DELETE/rollback với mock), typecheck, lint,
+và smoke test khởi động renderer (`PVE_SMOKE_TEST=1`) — không có vi phạm CSP. Chưa tự tay
+click qua UI mới (tab Hardware/Snapshot, form tạo snapshot) vì phiên này không được cấp
+quyền điều khiển desktop. Nên đối chiếu bằng tay hoặc yêu cầu lại quyền desktop trước khi
+coi phần này là xong hoàn toàn.
 
 ### Kiểm chứng lại toàn bộ
 
@@ -162,6 +175,16 @@ theo quán tính. Trình biên dịch sẽ báo TS1294. Khai báo field riêng r
 
 `TaskButton` cần báo kết quả đúng một lần khi task chuyển sang `done`. Bản đầu tay gọi
 `message.success()`/`onDone?.()` **trực tiếp trong thân component**, bọc trong `if (... && !reported) { setReported(true); ... }`. React cho phép gọi `setState` có điều kiện trong render để suy trạng thái phái sinh (mẫu "adjusting state" trong tài liệu React), nhưng side effect thật (hiện thông báo, gọi callback ra ngoài) thì **không** — render phải thuần túy. ESLint `react-hooks` bắt được ngay. Sửa bằng cách chuyển vào `useEffect`, và dùng `useRef` (không phải `useState`) để đánh dấu "đã báo" — vì bản thân cờ đó không cần kích hoạt render nào, chỉ để chặn effect chạy lại lần hai.
+
+### Lỗi TS2344 (constraint generic) che luôn lỗi "unused variable" thật
+
+`PveGrid<T>`/`PveForm<T>` ràng buộc `T extends Record<string, unknown>`. Truyền một interface
+phẳng không có index signature (`interface Row { name: string }`) làm generic instantiation thất
+bại với TS2344 — nhưng tsc còn báo thêm một loạt lỗi TS6133 "declared but never read" cho những
+biến/import **rõ ràng có dùng** trong cùng file (ví dụ `TaskButton`, `Tag` dùng ngay trong JSX bên
+dưới). Đây không phải hai lỗi độc lập: khi generic instantiation lỗi, phần thân sau đó không được
+typecheck đầy đủ nên các usage "biến mất" khỏi mắt tsc. Đừng đi sửa từng cái TS6133 — thêm
+`[key: string]: unknown` vào interface trước, rồi typecheck lại; phần lớn TS6133 tự hết.
 
 ### `rejectUnauthorized: false` cũng ảnh hưởng SNI với địa chỉ IP
 
@@ -312,30 +335,51 @@ hoàn toàn. Có test riêng.
 
 ---
 
-## 6. Việc tiếp theo — giai đoạn 4
+## 6. Việc tiếp theo — phần còn lại của giai đoạn 4
 
-Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Ước lượng 4–5 tuần.
+Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Phần 1
+(dưới) đã xong; phần việc lớn còn lại là wizard tạo mới và sửa phần cứng thật sự.
 
-1. **`<PveGrid>` / `<PveForm>`** — hai trừu tượng quyết định giai đoạn này mất 4 tuần hay 10 tuần
-   (xem mục 7 của `docs/plan.md`). Xây trước khi viết màn hình đầu tiên. Mỗi view danh sách phải
-   gói gọn dưới ~40 dòng nhờ `<PveGrid endpoint=... columns=... actions=.../>`.
-2. **Wizard tạo VM (8 tab)** và **wizard tạo CT**. Property-string codec (`@pve/api`) đã sẵn sàng
+**Đã xong (phần 1):**
+1. `<PveGrid>` (`renderer/components/PveGrid.tsx`) và `<PveForm>` (`renderer/components/PveForm.tsx`)
+   — hai trừu tượng quyết định giai đoạn này mất 4 tuần hay 10 tuần (xem mục 7 của `docs/plan.md`).
+2. Trang tổng quan VM/CT (Dashboard) — đã sửa để đọc từ store `resources` (push-event từ
+   `ResourcePoller`) thay vì tự `useQuery({refetchInterval: 5000})` như bản giai đoạn 2 cũ. Bản cũ
+   là một nguồn poll trùng thứ hai ngoài `ResourcePoller` — vi phạm chính nguyên tắc kiến trúc đã
+   chốt ở giai đoạn 3. Nếu thấy component nào khác còn tự poll `/cluster/resources`, sửa theo
+   mẫu này.
+3. `GuestDrawer` giờ có `Tabs`: **Tổng quan** (nội dung gốc từ giai đoạn 3, không đổi), **Phần
+   cứng** (`HardwareTab.tsx`, chỉ đọc — liệt kê phẳng mọi khóa của `/config`), **Snapshot**
+   (`SnapshotTab.tsx`, đầy đủ tạo/liệt kê/rollback/xóa).
+
+**Còn lại:**
+4. **Wizard tạo VM (8 tab)** và **wizard tạo CT**. Property-string codec (`@pve/api`) đã sẵn sàng
    cho phần lớn trường đĩa/mạng; các định dạng chỉ-có-tên (`pve-qm-boot`, `pve-qm-hostpci`…) cần
    model viết tay khi làm tới tab tương ứng.
-3. **Tab Hardware đầy đủ**: thêm/sửa/xóa đĩa, CD/DVD, mạng, CPU, RAM, PCI passthrough, USB,
-   serial, audio, EFI/TPM, cloud-init. `GuestDrawer` hiện tại (giai đoạn 3) là điểm khởi đầu tốt —
-   mở rộng nó hoặc tách thành trang riêng khi nội dung quá nhiều cho một drawer.
-4. **Clone/template/migrate/move-disk/resize-disk**, snapshot đầy đủ (đã có tạo/xóa/rollback ở
-   mock từ giai đoạn 3, cần thêm UI: cây snapshot, nút clone-from-snapshot).
-5. **Quyền theo guest**, lịch sử task theo guest.
+5. **Tab Hardware có thể sửa**: hiện tại `HardwareTab` chỉ đọc (bảng khóa/giá trị thô). Cần thêm
+   form sửa từng loại thiết bị (đĩa, CD/DVD, mạng, CPU, RAM, PCI passthrough, USB, serial, audio,
+   EFI/TPM, cloud-init) dùng `parsePropertyString`/`formatPropertyString` để mã hóa hai chiều.
+6. **Clone/template/migrate/move-disk/resize-disk.** Snapshot đã xong toàn bộ (mock từ giai đoạn 3
+   + UI mới); còn thiếu cây snapshot lồng nhau (Proxmox cho snapshot có `parent`) và nút
+   clone-from-snapshot.
+7. **Quyền theo guest**, lịch sử task theo guest, tab Options.
 
 Mock cần bổ sung dần theo từng nhóm tính năng — endpoint nào chưa có handler riêng vẫn trả lời
 hợp lệ nhờ auto-faker, nên UI dựng được trước khi viết hành vi thật cho mock.
 
-### Điểm nối đã có sẵn cho giai đoạn 4
+### Điểm nối đã có sẵn cho phần còn lại của giai đoạn 4
 
 - `TaskButton` xử lý mọi hành động trả UPID — clone/migrate/resize dùng lại thẳng, không cần viết
-  lại logic theo dõi.
+  lại logic theo dõi. Đã chứng minh lại với snapshot (rollback/xóa trong `SnapshotTab`).
+- `PveGrid<T>` nhận `connectionId`/`method`/`path`/`params`/`columns`/`rowKey`, tự `useQuery` +
+  hiện lỗi + ô tìm kiếm tùy chọn. CHỈ dùng cho endpoint gọi theo yêu cầu (snapshot, storage
+  content, users…) — KHÔNG dùng cho dữ liệu đã có qua push-event (cây tài nguyên, danh sách guest
+  toàn cụm), kẻo tạo poll trùng. Xem `renderer/routes/Dashboard.tsx` để thấy cách đọc thẳng từ
+  store `resources` thay vì PveGrid trong trường hợp đó.
+- `PveForm<T>` nhận `onFinish` tự do (không cố định method/path một-một, vì một form có thể gộp
+  nhiều property string thành một PUT config) — tự bắt lỗi và nối `error.payload.fieldErrors` vào
+  `Form.setFields()`. Kiểu tham số generic của `T` cho `PveGrid`/`PveForm` cần index signature
+  (`[key: string]: unknown`) để thỏa constraint — quên khai sẽ ra lỗi TS2344 (xem mục 2).
 - `useSelection` store (guest đang chọn) đã có; wizard/tab Hardware có thể dùng chung hoặc tách
   store riêng nếu cần trạng thái phức tạp hơn (đang sửa dở, chưa lưu…).
 - `pveRequest`/`pveQueryKey` trong `renderer/lib/pve.ts` là mẫu chuẩn cho mọi lời gọi mới.

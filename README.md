@@ -2,11 +2,12 @@
 
 Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: Giai đoạn 3 xong.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
+> **Trạng thái: giữa giai đoạn 4.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
 > động cho **675 endpoint**, máy chủ giả lập, **quản lý nhiều kết nối** đầy đủ (vault, TOFU
 > chứng chỉ, TFA), và **cây tài nguyên trực tiếp**: poller `/cluster/resources` trong main,
-> dock tác vụ theo dõi UPID tự động, biểu đồ RRD (uPlot), và xem nhanh guest kèm nút vòng đời.
-> Quản lý VM/CT đầy đủ (wizard, tab Hardware) thuộc giai đoạn 4.
+> dock tác vụ theo dõi UPID tự động, biểu đồ RRD (uPlot). Guest có trang chi tiết dạng tab
+> (Tổng quan / Phần cứng / Snapshot) dùng hai trừu tượng mới `<PveGrid>`/`<PveForm>`, với
+> snapshot tạo/liệt kê/rollback/xóa đầy đủ. Wizard tạo VM/CT và sửa phần cứng vẫn đang làm.
 
 ## Thử luồng đầy đủ
 
@@ -19,9 +20,11 @@ npm run dev:mock
 Rồi trong app (một terminal khác `npm run dev`), thêm kết nối tới `127.0.0.1:8006`,
 tài khoản `root@pam`, mật khẩu bất kỳ (trừ `sai`). App sẽ hiện dialog xác nhận vân tay
 chứng chỉ tự ký — bấm tin tưởng — rồi cây tài nguyên bên trái hiện node/VM/container thật
-từ mock, cập nhật mỗi 3 giây. Bấm vào một guest để mở khung xem nhanh với biểu đồ CPU/RAM
-và nút Khởi động/Tắt máy/Khởi động lại — bấm nút sẽ mở một tác vụ, hiện ngay trong dock
-nhật ký tác vụ ở đáy màn hình với log chạy trực tiếp.
+từ mock, cập nhật mỗi 3 giây. Bấm vào một guest để mở khung chi tiết có ba tab: **Tổng quan**
+(biểu đồ CPU/RAM, nút Khởi động/Tắt máy/Khởi động lại — bấm sẽ mở một tác vụ, hiện ngay
+trong dock nhật ký tác vụ ở đáy màn hình với log chạy trực tiếp), **Phần cứng** (bảng cấu
+hình thô, chỉ đọc), và **Snapshot** (tạo snapshot mới, rollback hoặc xóa snapshot đã có —
+mỗi thao tác cũng mở một tác vụ theo dõi được).
 
 Thử tài khoản `tfa@pve` để xem luồng nhập OTP (mã `123456`).
 

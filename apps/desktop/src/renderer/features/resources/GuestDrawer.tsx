@@ -1,4 +1,4 @@
-import { Badge, Descriptions, Drawer, Flex, Skeleton, Space, Tag, Typography } from 'antd'
+import { Badge, Descriptions, Drawer, Flex, Skeleton, Space, Tabs, Tag, Typography } from 'antd'
 import {
   PauseCircleOutlined,
   PlayCircleOutlined,
@@ -12,6 +12,8 @@ import { RrdChart, formatBytes, formatPercent } from '../../components/RrdChart'
 import { useConnections } from '../../stores/connections'
 import { useSelection } from '../../stores/selection'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
+import { HardwareTab } from './HardwareTab'
+import { SnapshotTab } from './SnapshotTab'
 
 interface GuestStatus {
   status: string
@@ -82,90 +84,110 @@ export function GuestDrawer(): React.JSX.Element {
       }
       open={open}
       onClose={() => select(null)}
-      width={480}
+      width={640}
       destroyOnHidden
     >
-      {guest && activeId && basePath && (
-        <Flex vertical gap={20}>
-          <Descriptions column={1} size="small">
-            <Descriptions.Item label={t('guest.node')}>{node}</Descriptions.Item>
-            <Descriptions.Item label={t('common.status')}>
-              {status ? t(`status.${status}` as 'status.running') : '—'}
-            </Descriptions.Item>
-            {statusQuery.data?.uptime !== undefined && statusQuery.data.uptime > 0 && (
-              <Descriptions.Item label={t('guest.uptime')}>
-                {formatUptime(statusQuery.data.uptime)}
-              </Descriptions.Item>
-            )}
-          </Descriptions>
+      {guest && activeId && basePath && type && node && vmid !== undefined && (
+        <Tabs
+          items={[
+            {
+              key: 'overview',
+              label: t('guest.tabOverview'),
+              children: (
+                <Flex vertical gap={20}>
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label={t('guest.node')}>{node}</Descriptions.Item>
+                    <Descriptions.Item label={t('common.status')}>
+                      {status ? t(`status.${status}` as 'status.running') : '—'}
+                    </Descriptions.Item>
+                    {statusQuery.data?.uptime !== undefined && statusQuery.data.uptime > 0 && (
+                      <Descriptions.Item label={t('guest.uptime')}>
+                        {formatUptime(statusQuery.data.uptime)}
+                      </Descriptions.Item>
+                    )}
+                  </Descriptions>
 
-          <Space wrap>
-            <TaskButton
-              connectionId={activeId}
-              method="POST"
-              path={`${basePath}/status/start`}
-              params={{ node, vmid }}
-              label={t('guest.start')}
-              icon={<PlayCircleOutlined />}
-              type="primary"
-              disabled={running}
-            />
-            <TaskButton
-              connectionId={activeId}
-              method="POST"
-              path={`${basePath}/status/shutdown`}
-              params={{ node, vmid }}
-              label={t('guest.shutdown')}
-              icon={<PoweroffOutlined />}
-              disabled={!running}
-            />
-            <TaskButton
-              connectionId={activeId}
-              method="POST"
-              path={`${basePath}/status/stop`}
-              params={{ node, vmid }}
-              label={t('guest.stop')}
-              icon={<PauseCircleOutlined />}
-              danger
-              confirmMessage={t('guest.stopConfirm')}
-              disabled={!running}
-            />
-            <TaskButton
-              connectionId={activeId}
-              method="POST"
-              path={`${basePath}/status/reboot`}
-              params={{ node, vmid }}
-              label={t('guest.reboot')}
-              icon={<ReloadOutlined />}
-              disabled={!running}
-            />
-          </Space>
+                  <Space wrap>
+                    <TaskButton
+                      connectionId={activeId}
+                      method="POST"
+                      path={`${basePath}/status/start`}
+                      params={{ node, vmid }}
+                      label={t('guest.start')}
+                      icon={<PlayCircleOutlined />}
+                      type="primary"
+                      disabled={running}
+                    />
+                    <TaskButton
+                      connectionId={activeId}
+                      method="POST"
+                      path={`${basePath}/status/shutdown`}
+                      params={{ node, vmid }}
+                      label={t('guest.shutdown')}
+                      icon={<PoweroffOutlined />}
+                      disabled={!running}
+                    />
+                    <TaskButton
+                      connectionId={activeId}
+                      method="POST"
+                      path={`${basePath}/status/stop`}
+                      params={{ node, vmid }}
+                      label={t('guest.stop')}
+                      icon={<PauseCircleOutlined />}
+                      danger
+                      confirmMessage={t('guest.stopConfirm')}
+                      disabled={!running}
+                    />
+                    <TaskButton
+                      connectionId={activeId}
+                      method="POST"
+                      path={`${basePath}/status/reboot`}
+                      params={{ node, vmid }}
+                      label={t('guest.reboot')}
+                      icon={<ReloadOutlined />}
+                      disabled={!running}
+                    />
+                  </Space>
 
-          {rrdQuery.isLoading ? (
-            <Skeleton active paragraph={{ rows: 4 }} />
-          ) : (
-            <Flex vertical gap={16}>
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('guest.cpu')}
-                </Typography.Text>
-                <RrdChart
-                  points={rrdPoints}
-                  series={[{ key: 'cpu', label: 'CPU', color: '#e57000', format: formatPercent }]}
-                />
-              </div>
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('guest.memory')}
-                </Typography.Text>
-                <RrdChart
-                  points={rrdPoints}
-                  series={[{ key: 'mem', label: 'RAM', color: '#1668dc', format: formatBytes }]}
-                />
-              </div>
-            </Flex>
-          )}
-        </Flex>
+                  {rrdQuery.isLoading ? (
+                    <Skeleton active paragraph={{ rows: 4 }} />
+                  ) : (
+                    <Flex vertical gap={16}>
+                      <div>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {t('guest.cpu')}
+                        </Typography.Text>
+                        <RrdChart
+                          points={rrdPoints}
+                          series={[{ key: 'cpu', label: 'CPU', color: '#e57000', format: formatPercent }]}
+                        />
+                      </div>
+                      <div>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {t('guest.memory')}
+                        </Typography.Text>
+                        <RrdChart
+                          points={rrdPoints}
+                          series={[{ key: 'mem', label: 'RAM', color: '#1668dc', format: formatBytes }]}
+                        />
+                      </div>
+                    </Flex>
+                  )}
+                </Flex>
+              ),
+            },
+            {
+              key: 'hardware',
+              label: t('guest.tabHardware'),
+              children: <HardwareTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
+            },
+            {
+              key: 'snapshot',
+              label: t('guest.tabSnapshot'),
+              children: <SnapshotTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
+            },
+          ]}
+        />
       )}
     </Drawer>
   )
