@@ -1,11 +1,12 @@
-import { Button, Card, Empty, Flex, Input, Statistic, Table, Tag, Typography } from 'antd'
-import { ApiOutlined, SearchOutlined } from '@ant-design/icons'
+import { Button, Card, Empty, Flex, Input, Space, Statistic, Table, Tag, Typography } from 'antd'
+import { ApiOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConnections } from '../stores/connections'
 import { useClusterResources } from '../hooks/useClusterResources'
 import { useSelection } from '../stores/selection'
+import { CreateVmWizard } from '../features/resources/create-vm/CreateVmWizard'
 import { isGuest, type ClusterResource } from '../features/resources/types'
 
 /** Định dạng byte sang đơn vị đọc được. */
@@ -27,6 +28,9 @@ export function Dashboard(): React.JSX.Element {
   const { activeId, phases } = useConnections()
   const select = useSelection((s) => s.select)
   const [query, setQuery] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  /** Tăng mỗi lần mở wizard để remount và reset state nháp. */
+  const [wizardKey, setWizardKey] = useState(0)
 
   const connected = activeId !== null && phases[activeId] === 'authenticated'
 
@@ -35,6 +39,30 @@ export function Dashboard(): React.JSX.Element {
   // thêm một nguồn dữ liệu lệch pha (xem stores/resources.ts).
   const { resources, at } = useClusterResources(connected ? activeId : null)
   const isLoading = connected && at === null
+
+  const rows = resources as ClusterResource[]
+  const nodes = useMemo(() => rows.filter((r) => r.type === 'node'), [rows])
+  const nodeNames = useMemo(
+    () =>
+      nodes
+        .map((n) => n.node)
+        .filter((n): n is string => Boolean(n))
+        .sort(),
+    [nodes],
+  )
+  const guests = useMemo(() => rows.filter(isGuest), [rows])
+  const running = guests.filter((r) => r.status === 'running').length
+
+  const q = query.trim().toLowerCase()
+  const filteredGuests =
+    q === ''
+      ? guests
+      : guests.filter(
+          (r) =>
+            (r.name?.toLowerCase().includes(q) ?? false) ||
+            String(r.vmid ?? '').includes(q) ||
+            (r.node?.toLowerCase().includes(q) ?? false),
+        )
 
   if (!connected) {
     return (
@@ -66,22 +94,6 @@ export function Dashboard(): React.JSX.Element {
     )
   }
 
-  const rows = resources as ClusterResource[]
-  const nodes = rows.filter((r) => r.type === 'node')
-  const guests = rows.filter(isGuest)
-  const running = guests.filter((r) => r.status === 'running').length
-
-  const q = query.trim().toLowerCase()
-  const filteredGuests =
-    q === ''
-      ? guests
-      : guests.filter(
-          (r) =>
-            (r.name?.toLowerCase().includes(q) ?? false) ||
-            String(r.vmid ?? '').includes(q) ||
-            (r.node?.toLowerCase().includes(q) ?? false),
-        )
-
   return (
     <Flex vertical gap={16}>
       <Typography.Title level={4} style={{ margin: 0 }}>
@@ -112,15 +124,29 @@ export function Dashboard(): React.JSX.Element {
         title="Máy ảo và container"
         size="small"
         extra={
-          <Input
-            allowClear
-            size="small"
-            style={{ width: 220 }}
-            prefix={<SearchOutlined />}
-            placeholder={t('common.search') ?? 'Tìm kiếm'}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <Space>
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              disabled={nodeNames.length === 0}
+              onClick={() => {
+                setWizardKey((k) => k + 1)
+                setCreateOpen(true)
+              }}
+            >
+              {t('wizard.createVm')}
+            </Button>
+            <Input
+              allowClear
+              size="small"
+              style={{ width: 220 }}
+              prefix={<SearchOutlined />}
+              placeholder={t('common.search') ?? 'Tìm kiếm'}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </Space>
         }
       >
         <Table<ClusterResource>
@@ -174,6 +200,16 @@ export function Dashboard(): React.JSX.Element {
           ]}
         />
       </Card>
+
+      {activeId ? (
+        <CreateVmWizard
+          key={wizardKey}
+          open={createOpen}
+          connectionId={activeId}
+          nodes={nodeNames}
+          onClose={() => setCreateOpen(false)}
+        />
+      ) : null}
     </Flex>
   )
 }
