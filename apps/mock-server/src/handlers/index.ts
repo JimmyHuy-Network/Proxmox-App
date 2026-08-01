@@ -102,7 +102,10 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
   on('GET', '/cluster/resources', ({ mock, input }) => {
     const rows = mock.world.clusterResources()
     const type = input['type']
-    return typeof type === 'string' ? rows.filter((r) => r['type'] === type) : rows
+    // Proxmox: `type=vm` gồm cả qemu và lxc (không phải một type riêng).
+    if (typeof type !== 'string') return rows
+    if (type === 'vm') return rows.filter((r) => r['type'] === 'qemu' || r['type'] === 'lxc')
+    return rows.filter((r) => r['type'] === type)
   })
 
   on('GET', '/cluster/status', ({ mock }) => {
@@ -235,11 +238,44 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
     on('PUT', `/nodes/{node}/${type}/{vmid}/config`, ({ input, mock }) => {
       const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
-      for (const [key, value] of Object.entries(input)) {
-        if (key === 'node' || key === 'vmid' || key === 'digest') continue
-        if (value === undefined || value === null) continue
-        guest.config[key] = value as string | number
+
+      // Proxmox nhận `delete=net0,scsi1` (CSV) để gỡ khóa khỏi config.
+      const deleteRaw = input['delete']
+      if (typeof deleteRaw === 'string' && deleteRaw.length > 0) {
+        for (const key of deleteRaw.split(',').map((s) => s.trim()).filter(Boolean)) {
+          delete guest.config[key]
+        }
       }
+
+      for (const [key, value] of Object.entries(input)) {
+        if (key === 'node' || key === 'vmid' || key === 'digest' || key === 'delete') continue
+        if (value === undefined || value === null || value === '') continue
+        // form-urlencoded đưa mọi thứ thành chuỗi; ép lại số cho vài scalar quen thuộc
+        // để khớp fixture và `/cluster/resources`.
+        if (
+          typeof value === 'string' &&
+          /^(cores|sockets|vcpus|memory|swap|balloon|shares|cpuunits)$/.test(key) &&
+          value !== '' &&
+          Number.isFinite(Number(value))
+        ) {
+          guest.config[key] = Number(value)
+        } else {
+          guest.config[key] = value as string | number
+        }
+      }
+
+      // Đồng bộ trường tóm tắt dùng bởi /cluster/resources + status/current.
+      // QEMU memory trên dây là chuỗi; LXC là số — `num()` nhận cả hai.
+      const cores = num(guest.config['cores'] ?? guest.cpus)
+      const sockets = num(guest.config['sockets'] ?? 1)
+      guest.cpus = Math.max(1, cores * (type === 'qemu' ? sockets : 1))
+      if (guest.config['memory'] !== undefined) {
+        guest.maxmem = num(guest.config['memory']) * 1024 * 1024
+        if (guest.status === 'running') {
+          guest.mem = Math.min(guest.mem, guest.maxmem)
+        }
+      }
+
       return null
     })
 

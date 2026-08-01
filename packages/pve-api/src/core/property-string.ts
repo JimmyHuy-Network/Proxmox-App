@@ -107,15 +107,43 @@ export function parsePropertyString(
 }
 
 /**
+ * Đảo bí danh khi ghi: `{ model: 'virtio', macaddr: 'AA:…' }` →
+ * `{ virtio: 'AA:…' }` để ra đúng dạng `virtio=AA:…` mà Proxmox dùng trên dây.
+ */
+function collapseAliases(
+  values: Record<string, string | number | boolean | null | undefined>,
+  schema: PropertyStringSchema | undefined,
+): Record<string, string | number | boolean | null | undefined> {
+  if (!schema) return values
+
+  const out: Record<string, string | number | boolean | null | undefined> = { ...values }
+
+  for (const [aliasName, entry] of Object.entries(schema)) {
+    if (!isAlias(entry) || !entry.keyAlias) continue
+    const modelValue = out[entry.keyAlias]
+    if (modelValue !== aliasName) continue
+    const aliasValue = out[entry.alias]
+    if (aliasValue === undefined || aliasValue === null || aliasValue === '') continue
+    out[aliasName] = aliasValue
+    delete out[entry.keyAlias]
+    delete out[entry.alias]
+  }
+
+  return out
+}
+
+/**
  * Dựng lại property string từ các cặp khoá–giá trị.
  *
  * Bỏ qua `undefined` và `null` để bên gọi truyền thẳng object có trường tuỳ chọn.
- * Boolean chuyển thành `1`/`0` đúng như Proxmox chờ đợi.
+ * Boolean chuyển thành `1`/`0` đúng như Proxmox chờ đợi. Có schema thì đảo bí danh
+ * (model+macaddr → `virtio=…`) trước khi nối chuỗi.
  */
 export function formatPropertyString(
   values: Record<string, string | number | boolean | null | undefined>,
   schema?: PropertyStringSchema,
 ): string {
+  const collapsed = collapseAliases(values, schema)
   const positionalName = defaultKeyOf(schema) ?? POSITIONAL_KEY
   const parts: string[] = []
 
@@ -125,14 +153,14 @@ export function formatPropertyString(
   }
 
   // Giá trị vị trí phải đứng đầu, nếu không Proxmox sẽ hiểu sai.
-  const positional = values[positionalName]
+  const positional = collapsed[positionalName]
   if (positional !== undefined && positional !== null && positional !== '') {
     parts.push(encode(positional))
   }
 
-  for (const [key, value] of Object.entries(values)) {
+  for (const [key, value] of Object.entries(collapsed)) {
     if (key === positionalName) continue
-    if (value === undefined || value === null) continue
+    if (value === undefined || value === null || value === '') continue
     parts.push(`${key}=${encode(value)}`)
   }
 

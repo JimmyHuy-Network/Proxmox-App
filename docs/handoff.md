@@ -10,9 +10,9 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 đang chạy — phần 1 xong** (hai trừu tượng
-`<PveGrid>`/`<PveForm>`, trang chi tiết guest có tab, snapshot UI đầy đủ). 174 test đạt,
-typecheck và lint sạch.
+**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 đang chạy — phần 1 + Hardware editable xong**
+(hai trừu tượng `<PveGrid>`/`<PveForm>`, snapshot UI, tab Hardware sửa được CPU/RAM/đĩa/mạng).
+182 test đạt, typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -30,21 +30,21 @@ typecheck và lint sạch.
 | **Mock: snapshot POST/DELETE/rollback + rrddata thật** | Xong, 15 test |
 | **`<PveGrid>` / `<PveForm>`** — hai trừu tượng cốt lõi giai đoạn 4 | Xong, giai đoạn 4 phần 1 |
 | **Trang tổng quan VM/CT** (Dashboard) đọc từ store `resources`, không poll trùng | Xong |
-| **Guest detail có tab**: Tổng quan / Phần cứng (đọc `/config`) / Snapshot | Xong |
+| **Guest detail có tab**: Tổng quan / Phần cứng / Snapshot | Xong |
 | **Snapshot UI đầy đủ**: tạo/liệt kê/rollback/xóa qua `PveGrid`+`PveForm`+`TaskButton` | Xong |
+| **Tab Hardware editable**: CPU/RAM, đĩa, mạng (thêm/sửa/xóa) + form tái sử dụng cho wizard | Xong |
+| **Mock PUT config**: `delete=` CSV + sync `cpus`/`maxmem`; `type=vm` = qemu∪lxc | Xong |
 
 Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
 đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
 
-**Chưa làm ở phần còn lại của giai đoạn 4:** wizard tạo VM/CT, tab Hardware có thể sửa
-(hiện chỉ đọc), clone/migrate/resize-disk, tab Options. Xem mục 6.
+**Chưa làm ở phần còn lại của giai đoạn 4:** wizard tạo VM/CT, PCI/USB/serial/EFI/cloud-init
+trên Hardware, clone/migrate/resize-disk, tab Options. Xem mục 6.
 
-**Chưa kiểm bằng tương tác desktop thật.** Phần 1 giai đoạn 4 được xác nhận bằng test tự
-động (174 test, gồm contract test snapshot POST/DELETE/rollback với mock), typecheck, lint,
-và smoke test khởi động renderer (`PVE_SMOKE_TEST=1`) — không có vi phạm CSP. Chưa tự tay
-click qua UI mới (tab Hardware/Snapshot, form tạo snapshot) vì phiên này không được cấp
-quyền điều khiển desktop. Nên đối chiếu bằng tay hoặc yêu cầu lại quyền desktop trước khi
-coi phần này là xong hoàn toàn.
+**Chưa kiểm bằng tương tác desktop thật.** Phần Hardware editable được xác nhận bằng test tự
+động (182 test, gồm classify config + PUT config delete/sync), typecheck, lint. Chưa tự tay
+click qua UI mới (modal sửa đĩa/mạng) vì phiên này không được cấp quyền điều khiển desktop.
+Nên đối chiếu bằng tay hoặc yêu cầu lại quyền desktop trước khi coi phần này là xong hoàn toàn.
 
 ### Kiểm chứng lại toàn bộ
 
@@ -337,32 +337,30 @@ hoàn toàn. Có test riêng.
 
 ## 6. Việc tiếp theo — phần còn lại của giai đoạn 4
 
-Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Phần 1
-(dưới) đã xong; phần việc lớn còn lại là wizard tạo mới và sửa phần cứng thật sự.
+Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Phần 1 và
+Hardware editable (CPU/RAM/đĩa/mạng) đã xong; phần việc lớn còn lại là wizard tạo mới và
+các loại thiết bị nâng cao.
 
-**Đã xong (phần 1):**
-1. `<PveGrid>` (`renderer/components/PveGrid.tsx`) và `<PveForm>` (`renderer/components/PveForm.tsx`)
-   — hai trừu tượng quyết định giai đoạn này mất 4 tuần hay 10 tuần (xem mục 7 của `docs/plan.md`).
-2. Trang tổng quan VM/CT (Dashboard) — đã sửa để đọc từ store `resources` (push-event từ
-   `ResourcePoller`) thay vì tự `useQuery({refetchInterval: 5000})` như bản giai đoạn 2 cũ. Bản cũ
-   là một nguồn poll trùng thứ hai ngoài `ResourcePoller` — vi phạm chính nguyên tắc kiến trúc đã
-   chốt ở giai đoạn 3. Nếu thấy component nào khác còn tự poll `/cluster/resources`, sửa theo
-   mẫu này.
-3. `GuestDrawer` giờ có `Tabs`: **Tổng quan** (nội dung gốc từ giai đoạn 3, không đổi), **Phần
-   cứng** (`HardwareTab.tsx`, chỉ đọc — liệt kê phẳng mọi khóa của `/config`), **Snapshot**
-   (`SnapshotTab.tsx`, đầy đủ tạo/liệt kê/rollback/xóa).
+**Đã xong (phần 1 + Hardware editable):**
+1. `<PveGrid>` / `<PveForm>` — hai trừu tượng cốt lõi (xem mục 7 của `docs/plan.md`).
+2. Dashboard đọc từ store `resources` (không poll trùng `/cluster/resources`).
+3. `GuestDrawer` tabs: Tổng quan / Phần cứng / Snapshot (snapshot CRUD đầy đủ).
+4. **Hardware editable** — `HardwareTab` danh sách theo nhóm; form ở
+   `renderer/features/resources/hardware/` (`CpuMemoryForm`, `NetworkForm`, `DiskForm`) dùng
+   `parsePropertyString`/`formatPropertyString` (có đảo bí danh `model`+`macaddr` → `virtio=…`).
+   PUT kèm `digest`; xóa qua `delete=<key>`. PCI/USB/serial/EFI/cloud-init vẫn nằm mục “Khác”
+   (chỉ đọc).
+5. Mock PUT config xử lý `delete`, sync `cpus`/`maxmem`; `/cluster/resources?type=vm` = qemu∪lxc.
 
 **Còn lại:**
-4. **Wizard tạo VM (8 tab)** và **wizard tạo CT**. Property-string codec (`@pve/api`) đã sẵn sàng
-   cho phần lớn trường đĩa/mạng; các định dạng chỉ-có-tên (`pve-qm-boot`, `pve-qm-hostpci`…) cần
-   model viết tay khi làm tới tab tương ứng.
-5. **Tab Hardware có thể sửa**: hiện tại `HardwareTab` chỉ đọc (bảng khóa/giá trị thô). Cần thêm
-   form sửa từng loại thiết bị (đĩa, CD/DVD, mạng, CPU, RAM, PCI passthrough, USB, serial, audio,
-   EFI/TPM, cloud-init) dùng `parsePropertyString`/`formatPropertyString` để mã hóa hai chiều.
-6. **Clone/template/migrate/move-disk/resize-disk.** Snapshot đã xong toàn bộ (mock từ giai đoạn 3
-   + UI mới); còn thiếu cây snapshot lồng nhau (Proxmox cho snapshot có `parent`) và nút
-   clone-from-snapshot.
-7. **Quyền theo guest**, lịch sử task theo guest, tab Options.
+6. **Wizard tạo VM (8 tab: General → OS → System → Disks → CPU → Memory → Network → Confirm)**
+   và wizard tạo CT — tái dùng các form Hardware ở trên. Cần handler mock `POST .../qemu`
+   ghi guest mới vào world (hiện auto-faker). Các định dạng chỉ-có-tên (`pve-qm-boot`…) viết
+   tay khi làm tới tab tương ứng.
+7. **Hardware nâng cao:** PCI, USB, serial, audio, EFI/TPM, cloud-init (form riêng).
+8. **Clone/template/migrate/move-disk/resize-disk.** Snapshot đã xong; còn thiếu cây snapshot
+   lồng nhau (`parent`) và clone-from-snapshot.
+9. **Quyền theo guest**, lịch sử task theo guest, tab Options.
 
 Mock cần bổ sung dần theo từng nhóm tính năng — endpoint nào chưa có handler riêng vẫn trả lời
 hợp lệ nhờ auto-faker, nên UI dựng được trước khi viết hành vi thật cho mock.
@@ -385,6 +383,10 @@ hợp lệ nhờ auto-faker, nên UI dựng được trước khi viết hành v
 - `pveRequest`/`pveQueryKey` trong `renderer/lib/pve.ts` là mẫu chuẩn cho mọi lời gọi mới.
 - Property-string codec (`parsePropertyString`/`formatPropertyString`/`propBool`/`parseSize`)
   trong `@pve/api` đã test kỹ với dữ liệu thật (giai đoạn 1 và đối chiếu) — dùng thẳng cho form.
+  `formatPropertyString` đảo bí danh mạng khi ghi. Form Hardware ở
+  `renderer/features/resources/hardware/` sẵn sàng tái dùng cho wizard.
+- **Bẫy QEMU `memory`:** schema khai báo type chuỗi (`t:"s"`), khác LXC (integer). Gửi số
+  từ `InputNumber` sẽ bị `validateParams` từ chối — phải `String(memory)` với QEMU.
 
 ---
 

@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "generate": "node scripts/generate.ts",
+    "generate": "node --experimental-strip-types scripts/generate.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
