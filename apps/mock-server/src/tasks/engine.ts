@@ -201,6 +201,11 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 8000, log: 'hoàn tất chuyển bộ nhớ' },
     { atMs: 9000, done: 'OK' },
   ],
+  vzmigrate: [
+    { atMs: 400, log: 'kiểm tra điều kiện di chuyển container' },
+    { atMs: 2000, log: 'sao chép rootfs sang node đích' },
+    { atMs: 4000, done: 'OK' },
+  ],
   vzdump: [
     { atMs: 500, log: 'INFO: bắt đầu sao lưu' },
     { atMs: 1500, log: 'INFO: tiến trình 10% (429 MB / 4.29 GB)' },
@@ -238,6 +243,19 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 1000, log: 'tạo cấu hình container' },
     { atMs: 1600, log: 'container đã được tạo' },
     { atMs: 1800, done: 'OK' },
+  ],
+  vzclone: [
+    { atMs: 400, log: 'tạo cấu hình container mới' },
+    { atMs: 1500, log: 'sao chép rootfs' },
+    { atMs: 2800, done: 'OK' },
+  ],
+  qmresize: [
+    { atMs: 400, log: 'thay đổi kích thước đĩa' },
+    { atMs: 1200, done: 'OK' },
+  ],
+  vzresize: [
+    { atMs: 400, log: 'thay đổi kích thước volume' },
+    { atMs: 1200, done: 'OK' },
   ],
   // Đối chiếu với PVE 9.2.2 thật: type task của snapshot LXC là vzsnapshot/
   // vzdelsnapshot, khác hẳn qmsnapshot dùng cho QEMU — không dùng chung tên.

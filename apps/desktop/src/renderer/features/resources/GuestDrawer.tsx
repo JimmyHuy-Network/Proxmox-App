@@ -11,7 +11,9 @@ import { TaskButton } from '../../components/TaskButton'
 import { RrdChart, formatBytes, formatPercent } from '../../components/RrdChart'
 import { useConnections } from '../../stores/connections'
 import { useSelection } from '../../stores/selection'
+import { useClusterResources } from '../../hooks/useClusterResources'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
+import { GuestOps } from './GuestOps'
 import { HardwareTab } from './HardwareTab'
 import { OptionsTab } from './OptionsTab'
 import { SnapshotTab } from './SnapshotTab'
@@ -64,6 +66,28 @@ export function GuestDrawer(): React.JSX.Element {
     enabled: canQuery,
     refetchInterval: 15_000,
   })
+
+  const configQuery = useQuery({
+    queryKey: canQuery ? pveQueryKey(activeId!, 'GET', `${basePath}/config`, { node, vmid }) : ['guest-config', 'idle'],
+    queryFn: () => pveRequest<Record<string, unknown>>(activeId!, 'GET', `${basePath}/config`, { node, vmid }),
+    enabled: canQuery,
+  })
+
+  const nextIdQuery = useQuery({
+    queryKey: activeId ? pveQueryKey(activeId, 'GET', '/cluster/nextid', {}) : ['nextid', 'idle'],
+    queryFn: () => pveRequest<string | number>(activeId!, 'GET', '/cluster/nextid', {}),
+    enabled: Boolean(activeId) && open,
+  })
+
+  const { resources } = useClusterResources(activeId)
+  const nodeNames = (resources as { type?: string; node?: string }[])
+    .filter((r) => r.type === 'node' && r.node)
+    .map((r) => r.node as string)
+    .sort()
+
+  const diskKeys = Object.keys(configQuery.data ?? {}).filter((k) =>
+    type === 'lxc' ? k === 'rootfs' || /^mp\d+$/.test(k) : /^(scsi|virtio|ide|sata)\d+$/.test(k),
+  )
 
   const status = statusQuery.data?.status ?? guest?.status
   const running = status === 'running'
@@ -149,6 +173,18 @@ export function GuestDrawer(): React.JSX.Element {
                       disabled={!running}
                     />
                   </Space>
+
+                  <GuestOps
+                    connectionId={activeId}
+                    node={node}
+                    type={type}
+                    vmid={vmid}
+                    nodes={nodeNames}
+                    diskKeys={diskKeys}
+                    nextId={
+                      nextIdQuery.data !== undefined ? Number(nextIdQuery.data) : undefined
+                    }
+                  />
 
                   {rrdQuery.isLoading ? (
                     <Skeleton active paragraph={{ rows: 4 }} />

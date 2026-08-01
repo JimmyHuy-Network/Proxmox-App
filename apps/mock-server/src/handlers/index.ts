@@ -433,6 +433,97 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
       return runTask(mock, { node, type: `${prefix}rollback`, id: String(vmid), user: auth.username })
     })
 
+    // ── Clone / migrate / resize ───────────────────────────────────────────
+    on('POST', `/nodes/{node}/${type}/{vmid}/clone`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const source = requireGuest(mock, node, vmid, type)
+      const newid = num(input['newid'])
+      if (!Number.isInteger(newid) || newid < 100) throw new HttpError(400, 'invalid newid')
+      if (mock.world.guest(newid)) throw new HttpError(500, `VM ${newid} already exists`)
+
+      const targetNode =
+        typeof input['target'] === 'string' && input['target'] !== ''
+          ? String(input['target'])
+          : node
+      if (!mock.world.node(targetNode)) throw new HttpError(500, 'no such node')
+
+      const cloneName =
+        type === 'qemu'
+          ? String(input['name'] ?? `${source.name}-clone`)
+          : String(input['hostname'] ?? `${source.name}-clone`)
+
+      return runTask(mock, {
+        node,
+        type: type === 'qemu' ? 'qmclone' : 'vzclone',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          const cloned: MockGuest = {
+            ...structuredClone(source),
+            vmid: newid,
+            name: cloneName,
+            node: targetNode,
+            status: 'stopped',
+            uptime: 0,
+            mem: 0,
+            cpu: 0,
+            snapshots: [],
+            lock: undefined,
+            template: input['full'] === 0 || input['full'] === '0' ? source.template : false,
+          }
+          if (type === 'qemu') cloned.config['name'] = cloneName
+          else cloned.config['hostname'] = cloneName
+          mock.world.addGuest(cloned)
+        },
+      })
+    })
+
+    on('POST', `/nodes/{node}/${type}/{vmid}/migrate`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      const target = String(input['target'] ?? '')
+      if (!target || !mock.world.node(target)) throw new HttpError(500, 'no such target node')
+      if (target === node) throw new HttpError(500, 'target is same as source')
+
+      return runTask(mock, {
+        node,
+        type: type === 'qemu' ? 'qmigrate' : 'vzmigrate',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          guest.node = target
+        },
+      })
+    })
+
+    on('PUT', `/nodes/{node}/${type}/{vmid}/resize`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      const disk = String(input['disk'] ?? '')
+      const sizeRaw = String(input['size'] ?? '')
+      if (!disk || !(disk in guest.config)) {
+        throw new HttpError(500, `disk '${disk}' does not exist`)
+      }
+      if (!sizeRaw) throw new HttpError(400, 'missing size')
+
+      return runTask(mock, {
+        node,
+        type: type === 'qemu' ? 'qmresize' : 'vzresize',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          guest.config[disk] = applyResizeToProperty(String(guest.config[disk]), sizeRaw)
+          const bytes = sizeToBytes(sizeRaw.replace(/^\+/, ''))
+          if (bytes !== undefined) {
+            guest.maxdisk = sizeRaw.startsWith('+') ? guest.maxdisk + bytes : bytes
+          }
+        },
+      })
+    })
+
     // ── RRD ────────────────────────────────────────────────────────────────
     on('GET', `/nodes/{node}/${type}/{vmid}/rrddata`, ({ input, mock }) => {
       const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
@@ -728,6 +819,42 @@ function buildLxcGuestFromCreate(
     config,
     snapshots: [],
   }
+}
+
+/** Áp dụng `size` dạng `32G` hoặc `+8G` vào property string đĩa/rootfs. */
+function applyResizeToProperty(raw: string, sizeRaw: string): string {
+  const absolute = sizeRaw.startsWith('+') ? null : sizeRaw
+  const parts = raw.split(',').filter(Boolean)
+  let found = false
+  const next = parts.map((part) => {
+    if (part.startsWith('size=')) {
+      found = true
+      if (absolute) return `size=${absolute}`
+      const current = part.slice('size='.length)
+      const curBytes = sizeToBytes(current) ?? 0
+      const addBytes = sizeToBytes(sizeRaw.slice(1)) ?? 0
+      return `size=${bytesToSize(curBytes + addBytes)}`
+    }
+    return part
+  })
+  if (!found && absolute) next.push(`size=${absolute}`)
+  return next.join(',')
+}
+
+function sizeToBytes(raw: string): number | undefined {
+  const m = /^(\d+(?:\.\d+)?)([KMGT])?$/i.exec(raw.trim())
+  if (!m) return undefined
+  const n = Number(m[1])
+  const u = (m[2] ?? 'G').toUpperCase()
+  const factor: Record<string, number> = { K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 }
+  return n * (factor[u] as number)
+}
+
+function bytesToSize(bytes: number): string {
+  if (bytes >= 1024 ** 4 && bytes % 1024 ** 4 === 0) return `${bytes / 1024 ** 4}T`
+  if (bytes >= 1024 ** 3) return `${Math.round((bytes / 1024 ** 3) * 10) / 10}G`
+  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)}M`
+  return `${bytes}`
 }
 
 function guestSummary(guest: MockGuest): Record<string, unknown> {
