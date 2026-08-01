@@ -21,6 +21,7 @@ export const vi = {
   },
   dashboard: {
     title: 'Tổng quan',
+    create: 'Tạo mới',
     noConnection: 'Chưa có kết nối nào',
     noConnectionHint:
       'Giai đoạn 2 sẽ bổ sung phần quản lý kết nối tới nhiều cluster Proxmox. Hiện tại có thể dùng thử console giả lập để kiểm tra đường đi kỹ thuật.',
@@ -214,6 +215,29 @@ export const vi = {
     errDiskSize: 'Dung lượng đĩa phải ≥ 1 GiB',
     errMemory: 'Bộ nhớ phải ≥ 16 MiB',
     errBridge: 'Nhập bridge mạng',
+  },
+  ctWizard: {
+    title: 'Tạo container',
+    createCt: 'Tạo CT',
+    submitted: 'Đã gửi yêu cầu tạo CT',
+    hostname: 'Hostname',
+    password: 'Mật khẩu',
+    passwordHelp: 'Mật khẩu root của container (tuỳ chọn trên mock)',
+    ostemplate: 'Template',
+    ostemplatePlaceholder: 'Chọn template vztmpl',
+    ostemplateManual: 'Hoặc nhập volid',
+    ostemplateManualHelp: 'Ví dụ local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst',
+    noTemplates: 'Không tìm thấy template trên storage',
+    unprivileged: 'Unprivileged container',
+    ctStepGeneral: 'Chung',
+    ctStepTemplate: 'Template',
+    ctStepDisk: 'Đĩa',
+    ctStepCpu: 'CPU',
+    ctStepMemory: 'Bộ nhớ',
+    ctStepNetwork: 'Mạng',
+    ctStepConfirm: 'Xác nhận',
+    errHostname: 'Nhập hostname',
+    errTemplate: 'Chọn hoặc nhập ostemplate',
   },
 }
 

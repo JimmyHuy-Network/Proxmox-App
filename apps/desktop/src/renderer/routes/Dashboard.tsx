@@ -1,11 +1,12 @@
-import { Button, Card, Empty, Flex, Input, Space, Statistic, Table, Tag, Typography } from 'antd'
-import { ApiOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import { Button, Card, Dropdown, Empty, Flex, Input, Space, Statistic, Table, Tag, Typography } from 'antd'
+import { ApiOutlined, DownOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConnections } from '../stores/connections'
 import { useClusterResources } from '../hooks/useClusterResources'
 import { useSelection } from '../stores/selection'
+import { CreateCtWizard } from '../features/resources/create-ct/CreateCtWizard'
 import { CreateVmWizard } from '../features/resources/create-vm/CreateVmWizard'
 import { isGuest, type ClusterResource } from '../features/resources/types'
 
@@ -28,9 +29,11 @@ export function Dashboard(): React.JSX.Element {
   const { activeId, phases } = useConnections()
   const select = useSelection((s) => s.select)
   const [query, setQuery] = useState('')
-  const [createOpen, setCreateOpen] = useState(false)
+  const [createVmOpen, setCreateVmOpen] = useState(false)
+  const [createCtOpen, setCreateCtOpen] = useState(false)
   /** Tăng mỗi lần mở wizard để remount và reset state nháp. */
-  const [wizardKey, setWizardKey] = useState(0)
+  const [vmWizardKey, setVmWizardKey] = useState(0)
+  const [ctWizardKey, setCtWizardKey] = useState(0)
 
   const connected = activeId !== null && phases[activeId] === 'authenticated'
 
@@ -125,18 +128,33 @@ export function Dashboard(): React.JSX.Element {
         size="small"
         extra={
           <Space>
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
+            <Dropdown
               disabled={nodeNames.length === 0}
-              onClick={() => {
-                setWizardKey((k) => k + 1)
-                setCreateOpen(true)
+              menu={{
+                items: [
+                  {
+                    key: 'vm',
+                    label: t('wizard.createVm'),
+                    onClick: () => {
+                      setVmWizardKey((k) => k + 1)
+                      setCreateVmOpen(true)
+                    },
+                  },
+                  {
+                    key: 'ct',
+                    label: t('ctWizard.createCt'),
+                    onClick: () => {
+                      setCtWizardKey((k) => k + 1)
+                      setCreateCtOpen(true)
+                    },
+                  },
+                ],
               }}
             >
-              {t('wizard.createVm')}
-            </Button>
+              <Button type="primary" size="small" icon={<PlusOutlined />} disabled={nodeNames.length === 0}>
+                {t('dashboard.create')} <DownOutlined />
+              </Button>
+            </Dropdown>
             <Input
               allowClear
               size="small"
@@ -202,13 +220,22 @@ export function Dashboard(): React.JSX.Element {
       </Card>
 
       {activeId ? (
-        <CreateVmWizard
-          key={wizardKey}
-          open={createOpen}
-          connectionId={activeId}
-          nodes={nodeNames}
-          onClose={() => setCreateOpen(false)}
-        />
+        <>
+          <CreateVmWizard
+            key={vmWizardKey}
+            open={createVmOpen}
+            connectionId={activeId}
+            nodes={nodeNames}
+            onClose={() => setCreateVmOpen(false)}
+          />
+          <CreateCtWizard
+            key={ctWizardKey}
+            open={createCtOpen}
+            connectionId={activeId}
+            nodes={nodeNames}
+            onClose={() => setCreateCtOpen(false)}
+          />
+        </>
       ) : null}
     </Flex>
   )
