@@ -125,6 +125,14 @@ export class World {
     return this.state.guests.find((g) => g.vmid === vmid && g.node === node && g.type === type)
   }
 
+  /** Thêm guest mới (wizard tạo VM/CT). Ném nếu vmid đã tồn tại. */
+  addGuest(guest: MockGuest): void {
+    if (this.state.guests.some((g) => g.vmid === guest.vmid)) {
+      throw new Error(`VM ${guest.vmid} already exists`)
+    }
+    this.state.guests.push(guest)
+  }
+
   storage(name: string): MockStorage | undefined {
     return this.state.storages.find((s) => s.storage === name)
   }

@@ -215,6 +215,40 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
   // ── Guest: danh sách và trạng thái ─────────────────────────────────────────
 
+  // Tạo VM mới — trả UPID `qmcreate`; guest chỉ xuất hiện trong world khi task xong
+  // (khớp hành vi Proxmox: cấu hình/đĩa ghi xong mới thấy trong /cluster/resources).
+  on('POST', '/nodes/{node}/qemu', ({ input, mock, auth }) => {
+    const node = String(input['node'])
+    if (!mock.world.node(node)) throw new HttpError(500, 'no such node')
+
+    const vmid = num(input['vmid'])
+    if (!Number.isInteger(vmid) || vmid < 100) {
+      throw new HttpError(400, 'invalid vmid')
+    }
+    if (mock.world.guest(vmid)) {
+      throw new HttpError(500, `VM ${vmid} already exists`)
+    }
+
+    const shouldStart = input['start'] === 1 || input['start'] === '1' || input['start'] === true
+    const guest = buildQemuGuestFromCreate(node, vmid, input)
+
+    return runTask(mock, {
+      node,
+      type: 'qmcreate',
+      id: String(vmid),
+      user: auth.username,
+      onSuccess: () => {
+        mock.world.addGuest(guest)
+        if (shouldStart) {
+          guest.status = 'running'
+          guest.uptime = 1
+          guest.mem = Math.floor(guest.maxmem * 0.4)
+          guest.cpu = 0.02
+        }
+      },
+    })
+  })
+
   for (const type of ['qemu', 'lxc'] as const) {
     on('GET', `/nodes/{node}/${type}`, ({ input, mock }) =>
       mock.world.current.guests
@@ -485,6 +519,94 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
   })
 
   return handlers
+}
+
+/** Tham số create không thuộc config guest (meta của API). */
+const CREATE_META_KEYS = new Set([
+  'node',
+  'vmid',
+  'start',
+  'unique',
+  'force',
+  'pool',
+  'bwlimit',
+  'live-restore',
+  'storage',
+])
+
+/**
+ * Dựng `MockGuest` từ body `POST /nodes/{node}/qemu`.
+ * `storage` chỉ là gợi ý mặc định của Proxmox khi tạo đĩa — không lưu vào config.
+ */
+function buildQemuGuestFromCreate(
+  node: string,
+  vmid: number,
+  input: Record<string, unknown>,
+): MockGuest {
+  const config: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (CREATE_META_KEYS.has(key)) continue
+    if (value === undefined || value === null || value === '') continue
+    if (
+      typeof value === 'string' &&
+      /^(cores|sockets|vcpus|memory|swap|balloon|shares|cpuunits)$/.test(key) &&
+      Number.isFinite(Number(value))
+    ) {
+      config[key] = Number(value)
+    } else if (typeof value === 'boolean') {
+      config[key] = value ? 1 : 0
+    } else {
+      config[key] = value as string | number
+    }
+  }
+
+  if (config['cores'] === undefined) config['cores'] = 1
+  if (config['sockets'] === undefined) config['sockets'] = 1
+  if (config['memory'] === undefined) config['memory'] = 512
+
+  const cores = num(config['cores'])
+  const sockets = num(config['sockets'])
+  const memoryMiB = num(config['memory'])
+  const name =
+    typeof config['name'] === 'string' && config['name'] !== ''
+      ? String(config['name'])
+      : `vm-${vmid}`
+
+  let maxdisk = 0
+  for (const [key, value] of Object.entries(config)) {
+    if (!/^(scsi|virtio|ide|sata)\d+$/.test(key)) continue
+    const raw = String(value)
+    const sizeMatch = /(?:^|,)size=(\d+(?:\.\d+)?)([GT])/i.exec(raw)
+    if (sizeMatch) {
+      const n = Number(sizeMatch[1])
+      maxdisk += sizeMatch[2]!.toUpperCase() === 'T' ? n * 1024 ** 4 : n * 1024 ** 3
+      continue
+    }
+    // Dạng tạo mới: `local-lvm:32` (GiB)
+    const createMatch = /^[^:]+:(\d+(?:\.\d+)?)$/.exec(raw.split(',')[0] ?? '')
+    if (createMatch) {
+      maxdisk += Number(createMatch[1]) * 1024 ** 3
+    }
+  }
+
+  return {
+    vmid,
+    name,
+    type: 'qemu',
+    node,
+    status: 'stopped',
+    cpu: 0,
+    cpus: Math.max(1, cores * sockets),
+    mem: 0,
+    maxmem: memoryMiB * 1024 * 1024,
+    disk: 0,
+    maxdisk,
+    uptime: 0,
+    template: config['template'] === 1 || config['template'] === '1',
+    ...(typeof config['tags'] === 'string' ? { tags: String(config['tags']) } : {}),
+    config,
+    snapshots: [],
+  }
 }
 
 function guestSummary(guest: MockGuest): Record<string, unknown> {

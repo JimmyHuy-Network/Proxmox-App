@@ -227,6 +227,12 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 500, log: 'xoá đĩa' },
     { atMs: 1800, done: 'OK' },
   ],
+  qmcreate: [
+    { atMs: 300, log: 'tạo cấu hình máy ảo' },
+    { atMs: 900, log: 'cấp phát đĩa' },
+    { atMs: 1600, log: 'máy ảo đã được tạo' },
+    { atMs: 1800, done: 'OK' },
+  ],
   // Đối chiếu với PVE 9.2.2 thật: type task của snapshot LXC là vzsnapshot/
   // vzdelsnapshot, khác hẳn qmsnapshot dùng cho QEMU — không dùng chung tên.
   vzsnapshot: [
