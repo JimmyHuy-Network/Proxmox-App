@@ -13,6 +13,7 @@ import { useConnections } from '../../stores/connections'
 import { useSelection } from '../../stores/selection'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
 import { HardwareTab } from './HardwareTab'
+import { OptionsTab } from './OptionsTab'
 import { SnapshotTab } from './SnapshotTab'
 
 interface GuestStatus {
@@ -185,6 +186,11 @@ export function GuestDrawer(): React.JSX.Element {
               key: 'snapshot',
               label: t('guest.tabSnapshot'),
               children: <SnapshotTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
+            },
+            {
+              key: 'options',
+              label: t('guest.tabOptions'),
+              children: <OptionsTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
             },
           ]}
         />
