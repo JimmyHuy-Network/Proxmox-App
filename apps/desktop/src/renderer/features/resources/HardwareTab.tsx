@@ -14,6 +14,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
+import { AdvancedDeviceForm, type AdvancedKind } from './hardware/AdvancedDeviceForm'
 import { CpuMemoryForm, type CpuMemoryValues } from './hardware/CpuMemoryForm'
 import { DiskForm } from './hardware/DiskForm'
 import { NetworkForm } from './hardware/NetworkForm'
@@ -22,13 +23,16 @@ import {
   nextDiskKey,
   nextMpKey,
   nextNetKey,
+  nextPciKey,
+  nextSerialKey,
+  nextUsbKey,
   summarizeHardwareValue,
   type HardwareGroup,
   type HardwareItem,
 } from './hardware/config-keys'
 import { putGuestConfig } from './hardware/put-config'
 
-type EditorKind = 'cpu-memory' | 'net' | 'disk' | null
+type EditorKind = 'cpu-memory' | 'net' | 'disk' | AdvancedKind | null
 
 interface EditorState {
   kind: EditorKind
@@ -37,10 +41,11 @@ interface EditorState {
   deviceKey?: string
 }
 
+const ADVANCED: ReadonlySet<string> = new Set(['usb', 'audio', 'serial', 'pci', 'cdrom', 'efi'])
+
 /**
- * Tab phần cứng guest: danh sách theo nhóm (CPU/RAM, đĩa, mạng, khác) với
- * thêm/sửa/xóa qua `PUT .../config`. Form thiết bị tách riêng để wizard tạo VM
- * tái sử dụng sau.
+ * Tab phần cứng guest: danh sách theo nhóm với thêm/sửa/xóa qua `PUT .../config`.
+ * QEMU thêm USB/audio/serial/PCI/CD/EFI-TPM; LXC giữ đĩa/mạng/CPU/RAM.
  */
 export function HardwareTab({
   connectionId,
@@ -98,16 +103,23 @@ export function HardwareTab({
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('guest.hardwareEmpty')} />
   }
 
-  const groups: { group: HardwareGroup; title: string; rows: HardwareItem[] }[] = (
-    [
-      ['cpu', t('guest.hardwareGroupCpu')],
-      ['memory', t('guest.hardwareGroupMemory')],
-      ['disk', t('guest.hardwareGroupDisk')],
-      ['net', t('guest.hardwareGroupNet')],
-      ['other', t('guest.hardwareGroupOther')],
-    ] as const
-  )
-    .map(([group, title]) => ({ group, title, rows: items.filter((i) => i.group === group) }))
+  const groupDefs: { group: HardwareGroup; title: string; qemuOnly?: boolean }[] = [
+    { group: 'cpu', title: t('guest.hardwareGroupCpu') },
+    { group: 'memory', title: t('guest.hardwareGroupMemory') },
+    { group: 'disk', title: t('guest.hardwareGroupDisk') },
+    { group: 'cdrom', title: t('guest.hardwareGroupCdrom'), qemuOnly: true },
+    { group: 'net', title: t('guest.hardwareGroupNet') },
+    { group: 'usb', title: t('guest.hardwareGroupUsb'), qemuOnly: true },
+    { group: 'audio', title: t('guest.hardwareGroupAudio'), qemuOnly: true },
+    { group: 'serial', title: t('guest.hardwareGroupSerial'), qemuOnly: true },
+    { group: 'pci', title: t('guest.hardwareGroupPci'), qemuOnly: true },
+    { group: 'efi', title: t('guest.hardwareGroupEfi'), qemuOnly: true },
+    { group: 'other', title: t('guest.hardwareGroupOther') },
+  ]
+
+  const groups = groupDefs
+    .filter((g) => !g.qemuOnly || type === 'qemu')
+    .map((g) => ({ ...g, rows: items.filter((i) => i.group === g.group) }))
     .filter((g) => g.rows.length > 0 || g.group === 'disk' || g.group === 'net')
 
   const cpuMemoryInitial = (): CpuMemoryValues => ({
@@ -117,13 +129,17 @@ export function HardwareTab({
     swap: num(config['swap']),
   })
 
+  const editorKindForGroup = (group: HardwareGroup): EditorKind => {
+    if (group === 'net') return 'net'
+    if (group === 'disk') return 'disk'
+    if (ADVANCED.has(group)) return group as AdvancedKind
+    return 'cpu-memory'
+  }
+
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Space wrap>
-        <Button
-          size="small"
-          onClick={() => setEditor({ kind: 'cpu-memory', mode: 'edit' })}
-        >
+        <Button size="small" onClick={() => setEditor({ kind: 'cpu-memory', mode: 'edit' })}>
           {t('guest.hardwareEditCpuMemory')}
         </Button>
         <Button
@@ -146,6 +162,50 @@ export function HardwareTab({
         >
           {t('guest.hardwareAddNet')}
         </Button>
+        {type === 'qemu' ? (
+          <>
+            <Button
+              size="small"
+              onClick={() =>
+                setEditor({ kind: 'cdrom', mode: 'add', deviceKey: nextDiskKey(config, 'ide') })
+              }
+            >
+              {t('guest.hardwareAddCdrom')}
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setEditor({ kind: 'usb', mode: 'add', deviceKey: nextUsbKey(config) })}
+            >
+              {t('guest.hardwareAddUsb')}
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setEditor({ kind: 'audio', mode: 'add', deviceKey: 'audio0' })}
+            >
+              {t('guest.hardwareAddAudio')}
+            </Button>
+            <Button
+              size="small"
+              onClick={() =>
+                setEditor({ kind: 'serial', mode: 'add', deviceKey: nextSerialKey(config) })
+              }
+            >
+              {t('guest.hardwareAddSerial')}
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setEditor({ kind: 'pci', mode: 'add', deviceKey: nextPciKey(config) })}
+            >
+              {t('guest.hardwareAddPci')}
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setEditor({ kind: 'efi', mode: 'add', deviceKey: 'efidisk0' })}
+            >
+              {t('guest.hardwareAddEfi')}
+            </Button>
+          </>
+        ) : null}
       </Space>
 
       {groups.map(({ group, title, rows }) => (
@@ -162,11 +222,7 @@ export function HardwareTab({
               pagination={false}
               dataSource={rows}
               columns={[
-                {
-                  title: t('guest.hardwareKey'),
-                  dataIndex: 'key',
-                  width: 120,
-                },
+                { title: t('guest.hardwareKey'), dataIndex: 'key', width: 120 },
                 {
                   title: t('guest.hardwareValue'),
                   key: 'summary',
@@ -196,7 +252,7 @@ export function HardwareTab({
                           size="small"
                           onClick={() =>
                             setEditor({
-                              kind: group === 'net' ? 'net' : 'disk',
+                              kind: editorKindForGroup(group),
                               mode: 'edit',
                               item: row,
                               deviceKey: row.key,
@@ -236,11 +292,8 @@ export function HardwareTab({
           guestType={type}
           initialValues={cpuMemoryInitial()}
           submitText={t('common.save')}
-          extra={
-            <Button onClick={closeEditor}>{t('common.cancel')}</Button>
-          }
+          extra={<Button onClick={closeEditor}>{t('common.cancel')}</Button>}
           onFinish={async (values) => {
-            // QEMU: schema khai báo memory là chuỗi; LXC: số nguyên. cores/sockets là integer.
             const patch: Record<string, unknown> = {
               cores: values.cores,
               memory: type === 'qemu' ? String(values.memory) : values.memory,
@@ -290,6 +343,29 @@ export function HardwareTab({
             deviceKey={editor.deviceKey}
             rawValue={editor.item?.value}
             config={config}
+            submitText={t('common.save')}
+            extra={<Button onClick={closeEditor}>{t('common.cancel')}</Button>}
+            onFinish={async (deviceKey, encoded) => {
+              await savePatch({ [deviceKey]: encoded })
+            }}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={editor.kind !== null && ADVANCED.has(editor.kind)}
+        title={t('guest.hardwareAdvancedTitle')}
+        footer={null}
+        onCancel={closeEditor}
+        destroyOnHidden
+        width={480}
+      >
+        {editor.kind && ADVANCED.has(editor.kind) && editor.deviceKey ? (
+          <AdvancedDeviceForm
+            kind={editor.kind as AdvancedKind}
+            mode={editor.mode}
+            deviceKey={editor.deviceKey}
+            rawValue={editor.item?.value}
             submitText={t('common.save')}
             extra={<Button onClick={closeEditor}>{t('common.cancel')}</Button>}
             onFinish={async (deviceKey, encoded) => {

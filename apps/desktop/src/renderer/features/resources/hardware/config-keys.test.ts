@@ -20,12 +20,29 @@ const qemuConfig = {
 
 describe('classifyConfigKeys', () => {
   it('chia nhóm và bỏ digest khỏi danh sách', () => {
-    const items = classifyConfigKeys(qemuConfig, 'qemu')
+    const items = classifyConfigKeys(
+      {
+        ...qemuConfig,
+        ide2: 'local:iso/debian.iso,media=cdrom',
+        usb0: 'spice,usb3=1',
+        audio0: 'device=ich9-intel-hda,driver=spice',
+        serial0: 'socket',
+        hostpci0: '0000:01:00',
+        efidisk0: 'local-lvm:vm-100-disk-1,efitype=4m',
+      },
+      'qemu',
+    )
     expect(items.find((i) => i.key === 'digest')).toBeUndefined()
     expect(items.find((i) => i.key === 'cores')?.group).toBe('cpu')
     expect(items.find((i) => i.key === 'memory')?.group).toBe('memory')
     expect(items.find((i) => i.key === 'scsi0')?.group).toBe('disk')
     expect(items.find((i) => i.key === 'net0')?.group).toBe('net')
+    expect(items.find((i) => i.key === 'ide2')?.group).toBe('cdrom')
+    expect(items.find((i) => i.key === 'usb0')?.group).toBe('usb')
+    expect(items.find((i) => i.key === 'audio0')?.group).toBe('audio')
+    expect(items.find((i) => i.key === 'serial0')?.group).toBe('serial')
+    expect(items.find((i) => i.key === 'hostpci0')?.group).toBe('pci')
+    expect(items.find((i) => i.key === 'efidisk0')?.group).toBe('efi')
     expect(items.find((i) => i.key === 'boot')?.group).toBe('other')
   })
 
