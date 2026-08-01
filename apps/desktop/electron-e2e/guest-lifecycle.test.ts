@@ -36,6 +36,12 @@ describe.skipIf(!enabled)('Playwright electron guest lifecycle', () => {
     throw new Error(`Task ${upid} không xong`)
   }
 
+  async function confirmPop(): Promise<void> {
+    const ok = page.locator('.ant-popconfirm-buttons .ant-btn-primary').last()
+    await ok.waitFor({ timeout: 5_000 })
+    await ok.click()
+  }
+
   beforeAll(async () => {
     server = await startMockServer({ port: 0, quiet: true })
     server.mock.setLatency(0, 0)
@@ -85,36 +91,44 @@ describe.skipIf(!enabled)('Playwright electron guest lifecycle', () => {
   it(
     'UI: thấy guest → start → snapshot → rollback → destroy',
     async () => {
-      await page.getByText(`pw-life-${vmid}`).first().waitFor({ timeout: 60_000 })
-      await page.getByText(`pw-life-${vmid}`).first().click()
+      const guestName = `pw-life-${vmid}`
+      const tableRow = page.locator('.ant-table-row', { hasText: guestName })
 
-      await page.getByRole('button', { name: /Khởi động|Start/i }).first().click()
-      await page.getByText(/Đang chạy|Running/i).first().waitFor({ timeout: 60_000 })
+      await tableRow.first().waitFor({ timeout: 60_000 })
+      await tableRow.first().click()
+
+      const drawer = page.locator('.ant-drawer-body')
+      // Tránh khớp "Khởi động lại" / "Start after create".
+      await drawer.getByRole('button', { name: /^(play-circle )?Khởi động$/i }).click()
+      await drawer.getByText(/Đang chạy|Running/i).first().waitFor({ timeout: 60_000 })
 
       await page.getByRole('tab', { name: /Snapshot/i }).click()
-      const snapInput = page.locator('.ant-drawer-body .ant-card input').first()
-      await snapInput.fill('pw-snap')
-      await page.getByRole('button', { name: /Tạo snapshot|Create snapshot/i }).click()
-      await page.getByText('pw-snap').first().waitFor({ timeout: 45_000 })
+      await drawer.locator('.ant-card input').first().fill('pw-snap')
+      await drawer.getByRole('button', { name: /Tạo snapshot|Create snapshot/i }).click()
+      await drawer.getByText('pw-snap').first().waitFor({ timeout: 45_000 })
 
-      await page.getByRole('button', { name: /Rollback/i }).first().click()
-      const ok = page.getByRole('button', { name: /Đồng ý/i }).last()
-      await ok.waitFor({ timeout: 5_000 })
-      await ok.click()
+      await drawer.getByRole('button', { name: /Rollback/i }).first().click()
+      await confirmPop()
 
       await page.getByRole('tab', { name: /Tổng quan|Overview/i }).click()
-      await page.getByRole('button', { name: /Buộc dừng|Stop/i }).first().click()
-      const confirmStop = page.getByRole('button', { name: /Đồng ý/i }).last()
-      await confirmStop.waitFor({ timeout: 5_000 })
-      await confirmStop.click()
-      await page.getByText(/Đã dừng|Stopped/i).first().waitFor({ timeout: 60_000 })
+      await drawer.getByRole('button', { name: /Buộc dừng|^Stop$/i }).click()
+      await confirmPop()
+      await drawer.getByText(/Đã dừng|Stopped/i).first().waitFor({ timeout: 60_000 })
 
-      await page.getByRole('button', { name: /^Xóa$|^Destroy$/i }).first().click()
-      const confirmDestroy = page.getByRole('button', { name: /Đồng ý/i }).last()
-      await confirmDestroy.waitFor({ timeout: 5_000 })
-      await confirmDestroy.click()
+      await drawer.getByRole('button', { name: /^(delete )?Xóa$|^(delete )?Destroy$/i }).click()
+      await confirmPop()
 
-      await page.getByText(`pw-life-${vmid}`).first().waitFor({ state: 'detached', timeout: 90_000 })
+      // Đóng drawer — tên guest còn trong title/TaskDock không được tính là còn tồn tại.
+      await page.keyboard.press('Escape')
+      await tableRow.first().waitFor({ state: 'detached', timeout: 90_000 })
+
+      // Đối chiếu API: guest đã biến khỏi world.
+      for (let i = 0; i < 40; i += 1) {
+        const list = await client.request('GET', '/nodes/{node}/qemu', { node: 'pve1' })
+        if (!list.some((g) => g.vmid === vmid)) return
+        await new Promise((r) => setTimeout(r, 250))
+      }
+      throw new Error(`Guest ${vmid} vẫn còn trên mock sau destroy`)
     },
     240_000,
   )
