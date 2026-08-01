@@ -1,0 +1,23 @@
+{
+  "name": "@pve/mock-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Máy chủ Proxmox VE giả lập — môi trường phát triển khi chưa có phần cứng thật",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "node src/index.ts",
+    "start": "node src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pve/api": "*",
+    "@pve/schema": "*",
+    "fastify": "^5.11.0",
+    "selfsigned": "^3.0.1",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
+  }
+}

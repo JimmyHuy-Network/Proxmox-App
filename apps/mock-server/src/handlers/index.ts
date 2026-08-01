@@ -1,0 +1,407 @@
+import { HttpError, handlerKey, type HandlerTable, type MockHandler } from '../router.ts'
+import { TFA_CODE, type AuthStore } from '../auth.ts'
+import { failingVariant, templateFor } from '../tasks/engine.ts'
+import type { MockContext } from '../context.ts'
+import type { GuestType, MockGuest } from '../state/world.ts'
+
+/**
+ * Hành vi thật cho những endpoint quan trọng nhất.
+ *
+ * Endpoint nào chưa có ở đây vẫn trả lời được nhờ bộ sinh tự động theo `returns`,
+ * nên giao diện dựng được trước rồi bổ sung hành vi sau — đúng thứ tự các giai đoạn
+ * trong kế hoạch.
+ */
+
+function requireGuest(mock: MockContext, node: string, vmid: number, type: GuestType): MockGuest {
+  const guest = mock.world.guestOn(node, vmid, type)
+  if (!guest) {
+    throw new HttpError(500, `Configuration file 'nodes/${node}/${type}-server/${vmid}.conf' does not exist`)
+  }
+  return guest
+}
+
+function num(value: unknown): number {
+  return typeof value === 'number' ? value : Number(value)
+}
+
+/** Khởi một tác vụ chạy nền và trả về UPID, đúng như Proxmox thật. */
+function runTask(
+  mock: MockContext,
+  init: { node: string; type: string; id: string; user: string; onSuccess?: () => void },
+): string {
+  const steps = templateFor(init.type)
+  return mock.tasks.startTask({ ...init, steps }).upid
+}
+
+export function buildHandlers(authStore: AuthStore): HandlerTable {
+  const handlers: HandlerTable = {}
+  const on = (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, handler: MockHandler): void => {
+    handlers[handlerKey(method, path)] = handler
+  }
+
+  // ── Xác thực ───────────────────────────────────────────────────────────────
+
+  on('POST', '/access/ticket', ({ input }) => {
+    const username = String(input['username'] ?? '')
+    const password = String(input['password'] ?? '')
+    const challenge = input['tfa-challenge']
+
+    const result = authStore.login(
+      username,
+      password,
+      typeof challenge === 'string' ? challenge : undefined,
+    )
+
+    if (result.status === 'failed') {
+      throw new HttpError(401, 'authentication failure')
+    }
+
+    if (result.status === 'tfa') {
+      // Proxmox trả về vé tạm kèm cờ NeedTFA; client phải đổi nó lấy vé thật.
+      return {
+        ticket: result.partialTicket,
+        username,
+        NeedTFA: 1,
+        // Gợi ý cho người dùng khi phát triển; máy chủ thật dĩ nhiên không làm vậy.
+        __hint: `Mã OTP giả lập là ${TFA_CODE}`,
+      }
+    }
+
+    return {
+      ticket: result.ticket.ticket,
+      CSRFPreventionToken: result.ticket.csrfToken,
+      username: result.ticket.username,
+      clustername: 'pve-lab',
+      cap: { vms: { 'VM.Console': 1, 'VM.PowerMgmt': 1 }, nodes: { 'Sys.Audit': 1 } },
+    }
+  })
+
+  on('GET', '/access/domains', () => [
+    { realm: 'pam', type: 'pam', comment: 'Linux PAM standard authentication' },
+    { realm: 'pve', type: 'pve', comment: 'Proxmox VE authentication server' },
+  ])
+
+  on('GET', '/access/users', ({ mock }) =>
+    mock.world.current.users.map((u) => ({
+      userid: u.userid,
+      enable: u.enable ? 1 : 0,
+      realm_type: u.realm,
+      ...(u.comment ? { comment: u.comment } : {}),
+      ...(u.groups ? { groups: u.groups } : {}),
+    })),
+  )
+
+  // ── Cụm ────────────────────────────────────────────────────────────────────
+
+  on('GET', '/version', ({ mock }) => {
+    const v = mock.world.current.version
+    return { version: v.version, release: v.release, repoid: v.repoid, console: 'xtermjs' }
+  })
+
+  on('GET', '/cluster/resources', ({ mock, input }) => {
+    const rows = mock.world.clusterResources()
+    const type = input['type']
+    return typeof type === 'string' ? rows.filter((r) => r['type'] === type) : rows
+  })
+
+  on('GET', '/cluster/status', ({ mock }) => {
+    const world = mock.world.current
+    return [
+      {
+        id: 'cluster',
+        type: 'cluster',
+        name: world.clusterName,
+        version: world.nodes.length,
+        nodes: world.nodes.length,
+        quorate: world.quorate ? 1 : 0,
+      },
+      ...world.nodes.map((n, index) => ({
+        id: `node/${n.node}`,
+        type: 'node',
+        name: n.node,
+        nodeid: index + 1,
+        online: n.status === 'online' ? 1 : 0,
+        local: index === 0 ? 1 : 0,
+        ip: `192.168.1.${10 + index}`,
+      })),
+    ]
+  })
+
+  on('GET', '/cluster/nextid', ({ mock }) => {
+    const used = new Set(mock.world.current.guests.map((g) => g.vmid))
+    let id = 100
+    while (used.has(id)) id += 1
+    return String(id)
+  })
+
+  on('GET', '/cluster/tasks', ({ mock }) => mock.tasks.list().map(taskSummary))
+
+  on('GET', '/pools', ({ mock }) => mock.world.current.pools)
+
+  // ── Node ───────────────────────────────────────────────────────────────────
+
+  on('GET', '/nodes', ({ mock }) =>
+    mock.world.current.nodes.map((n) => ({
+      node: n.node,
+      status: n.status,
+      cpu: n.cpu,
+      maxcpu: n.maxcpu,
+      mem: n.mem,
+      maxmem: n.maxmem,
+      disk: n.disk,
+      maxdisk: n.maxdisk,
+      uptime: n.uptime,
+      level: n.level,
+      type: 'node',
+      id: `node/${n.node}`,
+      ssl_fingerprint: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+    })),
+  )
+
+  on('GET', '/nodes/{node}/status', ({ input, mock }) => {
+    const node = mock.world.node(String(input['node']))
+    if (!node) throw new HttpError(500, 'no such node')
+    return {
+      uptime: node.uptime,
+      cpu: node.cpu,
+      cpuinfo: { cpus: node.maxcpu, model: 'AMD EPYC 7302P 16-Core Processor', sockets: 1 },
+      memory: { total: node.maxmem, used: node.mem, free: node.maxmem - node.mem },
+      rootfs: { total: node.maxdisk, used: node.disk, avail: node.maxdisk - node.disk },
+      loadavg: ['0.42', '0.51', '0.48'],
+      pveversion: `pve-manager/${mock.world.current.version.version}`,
+      kversion: 'Linux 6.14.11-1-pve',
+    }
+  })
+
+  on('GET', '/nodes/{node}/tasks', ({ input, mock }) =>
+    mock.tasks.list(String(input['node'])).map(taskSummary),
+  )
+
+  on('GET', '/nodes/{node}/tasks/{upid}/status', ({ input, mock }) => {
+    const task = mock.tasks.get(String(input['upid']))
+    if (!task) throw new HttpError(500, 'no such task')
+    return {
+      ...taskSummary(task),
+      status: task.status,
+      ...(task.exitstatus ? { exitstatus: task.exitstatus } : {}),
+    }
+  })
+
+  on('GET', '/nodes/{node}/tasks/{upid}/log', ({ input, mock }) => {
+    const task = mock.tasks.get(String(input['upid']))
+    if (!task) throw new HttpError(500, 'no such task')
+
+    // Tôn trọng con trỏ `start` — đây chính là thứ chứng minh logic tail log
+    // của client đúng, vì gửi lại từ đầu sẽ làm log nhân đôi.
+    const start = Number(input['start'] ?? 0)
+    const limit = Number(input['limit'] ?? 50)
+    return task.log.slice(start, start + limit)
+  })
+
+  // ── Guest: danh sách và trạng thái ─────────────────────────────────────────
+
+  for (const type of ['qemu', 'lxc'] as const) {
+    on('GET', `/nodes/{node}/${type}`, ({ input, mock }) =>
+      mock.world.current.guests
+        .filter((g) => g.node === String(input['node']) && g.type === type)
+        .map(guestSummary),
+    )
+
+    on('GET', `/nodes/{node}/${type}/{vmid}/status/current`, ({ input, mock }) => {
+      const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
+      return {
+        ...guestSummary(guest),
+        ha: { managed: 0 },
+        agent: guest.config['agent'] !== undefined ? 1 : 0,
+      }
+    })
+
+    on('GET', `/nodes/{node}/${type}/{vmid}/config`, ({ input, mock }) => {
+      const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
+      return { ...guest.config, digest: 'a'.repeat(40) }
+    })
+
+    on('PUT', `/nodes/{node}/${type}/{vmid}/config`, ({ input, mock }) => {
+      const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
+      for (const [key, value] of Object.entries(input)) {
+        if (key === 'node' || key === 'vmid' || key === 'digest') continue
+        if (value === undefined || value === null) continue
+        guest.config[key] = value as string | number
+      }
+      return null
+    })
+
+    on('GET', `/nodes/{node}/${type}/{vmid}/snapshot`, ({ input, mock }) => {
+      const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
+      return [
+        ...guest.snapshots.map((s) => ({
+          name: s.name,
+          description: s.description,
+          snaptime: s.snaptime,
+          vmstate: s.vmstate ? 1 : 0,
+          ...(s.parent ? { parent: s.parent } : {}),
+        })),
+        { name: 'current', description: 'You are here!', digest: 'b'.repeat(40) },
+      ]
+    })
+
+    const prefix = type === 'qemu' ? 'qm' : 'vz'
+
+    const power = (
+      action: 'start' | 'stop' | 'shutdown' | 'reboot' | 'reset' | 'suspend' | 'resume',
+      taskType: string,
+      apply: (guest: MockGuest) => void,
+    ): void => {
+      on('POST', `/nodes/{node}/${type}/{vmid}/status/${action}`, ({ input, mock, auth }) => {
+        const node = String(input['node'])
+        const vmid = num(input['vmid'])
+        const guest = requireGuest(mock, node, vmid, type)
+
+        if (guest.lock) {
+          throw new HttpError(500, `VM is locked (${guest.lock})`)
+        }
+        if (action === 'start' && guest.status === 'running') {
+          throw new HttpError(500, `${type === 'qemu' ? 'VM' : 'CT'} ${vmid} already running`)
+        }
+        if ((action === 'stop' || action === 'shutdown') && guest.status === 'stopped') {
+          throw new HttpError(500, `${type === 'qemu' ? 'VM' : 'CT'} ${vmid} not running`)
+        }
+
+        // Trạng thái chỉ đổi khi tác vụ xong — giống hệt Proxmox thật, và đó là
+        // thứ buộc giao diện phải trung thực về cập nhật lạc quan.
+        return runTask(mock, {
+          node,
+          type: taskType,
+          id: String(vmid),
+          user: auth.username,
+          onSuccess: () => apply(guest),
+        })
+      })
+    }
+
+    power('start', `${prefix}start`, (g) => {
+      g.status = 'running'
+      g.uptime = 1
+      g.mem = Math.floor(g.maxmem * 0.4)
+      g.cpu = 0.02
+    })
+    power('stop', `${prefix}stop`, (g) => {
+      g.status = 'stopped'
+      g.uptime = 0
+      g.mem = 0
+      g.cpu = 0
+    })
+    power('shutdown', `${prefix}shutdown`, (g) => {
+      g.status = 'stopped'
+      g.uptime = 0
+      g.mem = 0
+      g.cpu = 0
+    })
+    power('reboot', `${prefix}reboot`, (g) => {
+      g.uptime = 1
+    })
+
+    if (type === 'qemu') {
+      power('reset', 'qmreset', (g) => {
+        g.uptime = 1
+      })
+      power('suspend', 'qmsuspend', (g) => {
+        g.status = 'paused'
+      })
+      power('resume', 'qmresume', (g) => {
+        g.status = 'running'
+      })
+    }
+  }
+
+  // ── Storage ────────────────────────────────────────────────────────────────
+
+  on('GET', '/storage', ({ mock }) =>
+    mock.world.current.storages.map((s) => ({
+      storage: s.storage,
+      type: s.type,
+      content: s.content,
+      shared: s.shared ? 1 : 0,
+      ...(s.nodes ? { nodes: s.nodes } : {}),
+    })),
+  )
+
+  on('GET', '/nodes/{node}/storage', ({ mock }) =>
+    mock.world.current.storages.map((s) => ({
+      storage: s.storage,
+      type: s.type,
+      content: s.content,
+      shared: s.shared ? 1 : 0,
+      enabled: s.enabled ? 1 : 0,
+      active: s.enabled ? 1 : 0,
+      total: s.total,
+      used: s.used,
+      avail: s.avail,
+      used_fraction: Number((s.used / s.total).toFixed(4)),
+    })),
+  )
+
+  on('GET', '/nodes/{node}/storage/{storage}/content', ({ input, mock }) => {
+    const storage = mock.world.storage(String(input['storage']))
+    if (!storage) throw new HttpError(500, 'storage does not exist')
+
+    const content = input['content']
+    return storage.contents
+      .filter((v) => (typeof content === 'string' ? v.content === content : true))
+      .map((v) => ({
+        volid: v.volid,
+        format: v.format,
+        size: v.size,
+        content: v.content,
+        ctime: v.ctime,
+        ...(v.vmid ? { vmid: v.vmid } : {}),
+        ...(v.notes ? { notes: v.notes } : {}),
+      }))
+  })
+
+  return handlers
+}
+
+function guestSummary(guest: MockGuest): Record<string, unknown> {
+  return {
+    vmid: guest.vmid,
+    name: guest.name,
+    status: guest.status,
+    cpu: guest.cpu,
+    cpus: guest.cpus,
+    mem: guest.mem,
+    maxmem: guest.maxmem,
+    disk: guest.disk,
+    maxdisk: guest.maxdisk,
+    uptime: guest.uptime,
+    template: guest.template ? 1 : 0,
+    ...(guest.tags ? { tags: guest.tags } : {}),
+    ...(guest.lock ? { lock: guest.lock } : {}),
+  }
+}
+
+function taskSummary(task: {
+  upid: string
+  node: string
+  pid: number
+  starttime: number
+  type: string
+  id: string
+  user: string
+  status: 'running' | 'stopped'
+  exitstatus?: string
+}): Record<string, unknown> {
+  return {
+    upid: task.upid,
+    node: task.node,
+    pid: task.pid,
+    starttime: task.starttime,
+    type: task.type,
+    id: task.id,
+    user: task.user,
+    status: task.status,
+    ...(task.exitstatus ? { exitstatus: task.exitstatus, endtime: task.starttime + 5 } : {}),
+  }
+}
+
+export { failingVariant }

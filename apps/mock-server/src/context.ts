@@ -1,0 +1,101 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import type { PveHttpMethod } from '@pve/schema'
+import { TaskEngine } from './tasks/engine.ts'
+import { World, type MockWorld } from './state/world.ts'
+import { AuthStore } from './auth.ts'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const fixturesDir = join(here, '..', 'fixtures')
+
+export const FIXTURES = ['cluster-3node'] as const
+export type FixtureName = (typeof FIXTURES)[number]
+
+interface InjectedFailure {
+  method: PveHttpMethod
+  path: string
+  status: number
+  message: string
+  remaining: number
+}
+
+/**
+ * Trạng thái dùng chung của máy chủ giả lập, cộng các cần gạt để thao túng nó
+ * từ bên ngoài qua API điều khiển `/__mock/`.
+ *
+ * Mấy cần gạt này không phải để cho vui: có thể tiêm độ trễ, ép lỗi, và cho một
+ * node ngừng hoạt động chỉ bằng một lời gọi — đó là cách duy nhất dựng được giao
+ * diện cho các trạng thái hỏng hóc khi trong tay không có cụm máy thật để phá.
+ */
+export class MockContext {
+  readonly world: World
+  readonly tasks = new TaskEngine()
+  readonly auth = new AuthStore()
+
+  private latencyMs = 40
+  private latencyJitter = 40
+  private failures: InjectedFailure[] = []
+
+  constructor(fixture: FixtureName = 'cluster-3node') {
+    this.world = new World(loadFixture(fixture))
+    this.tasks.start()
+  }
+
+  loadFixture(name: FixtureName): void {
+    this.world.load(loadFixture(name))
+    this.tasks.reset()
+  }
+
+  reset(): void {
+    this.world.reset()
+    this.tasks.reset()
+    this.auth.reset()
+    this.failures = []
+  }
+
+  setLatency(ms: number, jitter = 0): void {
+    this.latencyMs = Math.max(0, ms)
+    this.latencyJitter = Math.max(0, jitter)
+  }
+
+  latency(): number {
+    if (this.latencyMs === 0 && this.latencyJitter === 0) return 0
+    return this.latencyMs + Math.floor(Math.random() * (this.latencyJitter + 1))
+  }
+
+  injectFailure(failure: Omit<InjectedFailure, 'remaining'> & { count?: number }): void {
+    this.failures.push({ ...failure, remaining: failure.count ?? 1 })
+  }
+
+  /** Lấy ra một lỗi đã tiêm cho endpoint này, nếu có, và trừ đi một lượt. */
+  takeInjectedFailure(
+    method: PveHttpMethod,
+    path: string,
+  ): { status: number; message: string } | null {
+    const index = this.failures.findIndex((f) => f.method === method && f.path === path)
+    if (index < 0) return null
+
+    const failure = this.failures[index] as InjectedFailure
+    failure.remaining -= 1
+    if (failure.remaining <= 0) this.failures.splice(index, 1)
+
+    return { status: failure.status, message: failure.message }
+  }
+
+  setNodeOffline(node: string, offline: boolean): boolean {
+    const target = this.world.node(node)
+    if (!target) return false
+    target.status = offline ? 'offline' : 'online'
+    return true
+  }
+
+  stop(): void {
+    this.tasks.stop()
+  }
+}
+
+function loadFixture(name: string): MockWorld {
+  const path = join(fixturesDir, `${name}.json`)
+  return JSON.parse(readFileSync(path, 'utf8')) as MockWorld
+}

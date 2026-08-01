@@ -1,4 +1,4 @@
-# Bàn giao — kết thúc giai đoạn 0
+# Bàn giao — kết thúc giai đoạn 1
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
@@ -10,7 +10,7 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0 hoàn tất.** Bộ khung chạy được, đóng gói được, và đường đi console đã kiểm chứng.
+**Giai đoạn 0 và 1 hoàn tất.** 121 test đạt, typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -18,14 +18,17 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 | Electron 43 + electron-vite 5 + Vite 7 + React 19 | Xong |
 | Cấu hình bảo mật (contextIsolation, sandbox, CSP, chặn điều hướng) | Xong, có kiểm tự động |
 | antd 6 theme tối gọn + TanStack Router + i18n tiếng Việt | Xong |
-| Giao thức termproxy (mã hoá/giải mã khung) | Xong, 15 test |
-| Relay console loopback + token dùng một lần | Xong, 10 test tích hợp |
-| Fake shell (dùng thay Proxmox thật) | Xong |
-| xterm.js nối qua term-attach tự viết | Xong |
+| Giao thức termproxy + relay console loopback | Xong, 25 test |
 | electron-builder ra installer NSIS | Xong, 96 MB |
+| **Schema Proxmox chuẩn hoá** (449 đường dẫn / 675 endpoint) | Xong, 13 test canh giữ |
+| **Client có kiểu sinh tự động** | Xong, 675 endpoint, 686 KB |
+| **Codec property string** + 44 sub-schema sinh tự động | Xong, 20 test |
+| **Mock server định tuyến theo schema** | Xong, phục vụ đủ 675 endpoint |
+| **Contract test** quét 340 endpoint GET | Xong, đạt hết |
+| **Kiểm chứng đầu-cuối client ↔ mock** | Xong, 28 test |
 
-**Chưa có gì kết nối được Proxmox thật.** Toàn bộ tầng HTTP, xác thực, và kho credential
-thuộc giai đoạn 1–2.
+**Chưa có giao diện quản lý kết nối.** Vault, TOFU chứng chỉ, TFA và năm kênh IPC thuộc
+giai đoạn 2.
 
 ### Kiểm chứng lại toàn bộ
 
@@ -95,6 +98,32 @@ microtask sau (`await connect()` rồi mới `socket.on('message')`) thì **luô
 Mã sản phẩm không dính vì `attachTerminal` được gọi đồng bộ ngay sau `new WebSocket`. Bộ test đã
 từng dính và được sửa — xem ghi chú trong `relay-server.test.ts`.
 
+### `apidoc.js` KHÔNG phải một tệp JSON
+
+Nó có dạng `const apiSchema = [ …4.2 MB… ]` rồi **tiếp theo là 22 KB mã ExtJS** của trang
+API viewer. Không cắt được theo ký tự cuối tệp — phải quét dấu ngoặc cân bằng có tôn trọng
+chuỗi và ký tự escape. Xem `packages/pve-schema/src/extract.ts`.
+
+### Node từ chối cú pháp TypeScript không xoá được
+
+Node chạy `.ts` bằng cách **xoá kiểu**, nên `constructor(private readonly x)`, `enum` và
+`namespace` đều gây lỗi `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` lúc chạy, với thông báo không
+gợi ý gì về nguyên nhân. Đã bật `erasableSyntaxOnly: true` trong `tsconfig.base.json` để
+trình biên dịch chặn trước. Đừng tắt cờ đó.
+
+Cũng vì cơ chế xoá kiểu, mọi import tương đối **bắt buộc ghi rõ đuôi `.ts`** (`allowImportingTsExtensions`).
+
+### Fastify không tự phân tích form-urlencoded
+
+Proxmox nhận tham số dưới dạng `application/x-www-form-urlencoded`, **không** nhận JSON body.
+Fastify không có sẵn bộ phân tích cho kiểu này, và thiếu nó thì mọi POST trả 415 với thông
+báo chẳng nói gì về nguyên nhân. Đã thêm trong `apps/mock-server/src/index.ts`.
+
+### Tra bảng endpoint phải dùng `Object.hasOwn`
+
+`PVE_PATHS[path]` trần sẽ trả về thứ gì đó cho `__proto__`, `constructor`, `toString` — và
+bộ kiểm danh sách trắng của IPC coi như hợp lệ. Có test canh riêng cho việc này.
+
 ### Không đặt `as const` lên bảng chuỗi i18n
 
 `as const` biến mỗi giá trị thành kiểu literal đúng chuỗi tiếng Việt đó, khiến bản dịch tiếng Anh
@@ -145,58 +174,102 @@ của antd/React và tạo ra rất nhiều `{...(x ? {p: x} : {})}`. Đã giữ
 **`electron.vite.config.ts` và `electron-builder.yml` đặt trong `apps/desktop/`,** không phải ở gốc
 như sơ đồ trong kế hoạch — vì script npm chạy trong thư mục workspace nên công cụ tìm config ở đó.
 
+**Không dùng Valibot cho việc kiểm tham số.** Kế hoạch định sinh 675 schema Valibot. Thực tế
+làm vậy vừa nặng lúc khởi động vừa khó test. Đã thay bằng một bảng metadata gọn (`endpoints.ts`,
+mã kiểu một ký tự) cộng một hàm `validateParams` viết tay dùng chung — nhỏ hơn nhiều và chỉ có
+một đường mã cần kiểm chứng. `valibot` không còn là dependency.
+
+**Chưa chuyển `fake-shell.ts` sang mock server.** Kế hoạch xếp việc này vào giai đoạn 1, nhưng
+console của mock (endpoint `/termproxy` + `/vncwebsocket`) thuộc giai đoạn 5. Chuyển bây giờ sẽ
+làm hỏng console demo đang chạy mà không được gì. Fake shell vẫn ở
+`apps/desktop/src/main/console/`; sẽ chuyển khi làm console cho mock ở giai đoạn 5.
+
+**Property string: sinh tự động thay vì viết tay 15 model.** Xem mục 5 — Proxmox nhúng sẵn
+sub-schema trong `apidoc.js` nên phần lớn sinh được. Chỉ còn ~5 định dạng chỉ-có-tên phải viết
+tay, và chưa cần cho tới giai đoạn 4.
+
 ---
 
-## 5. Việc tiếp theo — giai đoạn 1
+## 5. Những gì phát hiện được về schema Proxmox
 
-Mục tiêu: **schema + client sinh tự động + bộ khung mock server**. Ước lượng 1.5–2 tuần.
-
-### Thứ tự làm
-
-1. **`packages/pve-schema`**
-   - `scripts/fetch-apidoc.ts` tải `https://pve.proxmox.com/pve-docs/api-viewer/apidoc.js`
-     (đã xác minh: HTTP 200, 4.277.440 byte, `text/javascript`), ghi `raw/` kèm sha256 + phiên bản PVE.
-   - `scripts/normalize.ts` bóc tiền tố `const apiSchema = ` và dấu `;` cuối, `JSON.parse`, làm phẳng
-     cây thành record theo path, trích `pathParams` từ các đoạn `{...}`.
-   - Xuất `generated/pve-9.2.schema.json` — **commit tệp này** để build không cần mạng.
-   - `raw/` đã nằm trong `.gitignore`; `generated/` thì không.
-
-2. **`packages/pve-api`** — generator phát ra `paths.ts` (kiểu), `endpoints.ts` (metadata lúc chạy,
-   dùng cho danh sách trắng IPC), `validators.ts` (Valibot), `enums.ts`.
-
-3. **Phần viết tay của `pve-api`**: `core/property-string.ts` + model cho ~15 property string quan
-   trọng (disk, net, mp, hostpci, usb, serial, boot, ipconfig, startup, agent, numa, smbios1, spice,
-   efidisk, tpmstate), `core/upid.ts`, `core/errors.ts`, `core/auth.ts`.
-
-4. **`apps/mock-server`** — Fastify 5, HTTPS cert tự ký, cổng 8006. Router đọc chính
-   `pve-9.2.schema.json`. Chuyển `fake-shell.ts` từ `apps/desktop/src/main/console/` sang đây.
-
-### Số liệu đã xác minh về schema
+Số liệu đã đo trực tiếp, không phải suy đoán:
 
 | | |
 |---|---|
-| URL | `https://pve.proxmox.com/pve-docs/api-viewer/apidoc.js` |
-| Kích thước | 4.277.440 byte |
-| Mở đầu | `const apiSchema = [` |
+| Kích thước `apidoc.js` | 4.277.440 byte (mảng schema chiếm 4.255.316) |
 | Đường dẫn riêng biệt | **449** |
-| Endpoint (path × method) | **675** |
-| Khoá của node | `children`, `info`, `leaf`, `path`, `text` |
-| Khoá theo method | `allowtoken`, `description`, `method`, `name`, `parameters`, `returns`, `permissions`, `protected`, `proxyto` |
+| Endpoint (path × method) | **675** — GET 340, POST 173, PUT 83, DELETE 79 |
+| Endpoint chặn API Token | **chỉ 5** |
+| Tham số có sub-schema property string nội tuyến | 93, gộp lại còn **44 schema riêng biệt** |
+| Tên tham số dạng đánh số | 17 (`net[n]`, `scsi[n]`, `mp[n]`, `hostpci[n]`…) |
 
-`allowtoken: 0` chính là cách biết endpoint nào **không** dùng được API Token.
+### API Token dùng được cho console — trái với tài liệu cũ
 
-### Bẫy đã biết khi map kiểu
+Kế hoạch ban đầu (dựa trên một bài forum về PVE cũ) khẳng định API Token không mở được
+`/termproxy`. **Schema PVE 9.2 nói ngược lại**: cả 11 endpoint console đều có `allowToken: 1`,
+và 9.2 còn bổ sung `/access/vncticket` đúng như roadmap nhắc tới.
 
-- `type: 'boolean'` nhưng **wire format là `0`/`1`** — phải ép kiểu hai chiều.
-- Khoá glob `net[n]`, `scsi[n]`, `mp[n]`, `hostpci[n]` → sinh index signature `` [K in `net${number}`]?: string ``.
-- Nhiều "object" thực chất là property string (`virtio0: 'local-lvm:vm-100-disk-0,size=32G'`).
-  Generator không type nổi — đó là lý do có phần viết tay ở bước 3.
-- Proxmox tự nói schema **"không tương thích 100% với JSONSchema"** và API **không đánh version**.
-  Luôn giữ lối thoát `client.raw(method, path, params)` không kiểu.
+Đã có test canh giữ khẳng định danh sách này. Nhưng **chưa xác nhận trên server thật** —
+`allowtoken` là cổng phân quyền ở tầng API, còn `pvedaemon` trước đây có một lớp kiểm tra
+riêng từ chối tên người dùng dạng token. Vẫn phải đối chiếu ở giai đoạn 5.
+
+Dù sao thì WebSocket console vẫn cần cookie `PVEAuthCookie`, mà bắt tay WebSocket không
+mang header `Authorization` — nên thực tế console vẫn cần đăng nhập bằng ticket.
+
+### Không suy được endpoint nào trả UPID từ mô tả
+
+Chỉ **6 trên 107** endpoint trả chuỗi có mô tả nhắc tới UPID. Ngay cả `status/start` cũng chỉ
+ghi `{"type":"string"}`. Heuristic theo mô tả mà kế hoạch đề xuất gần như vô dụng.
+
+Quy luật đang dùng dựa trên cấu trúc: **không phải GET + trả chuỗi + không có `format` +
+không có `description` riêng** → UPID. Cho ra 82 endpoint. Những cái trả chuỗi vì lý do khác
+đều tự nhận diện được (`wakeonlan` có `format: mac-addr`, `auth-url` có description riêng);
+chỉ `POST /cluster/sdn/lock` phải liệt kê tay.
+
+Đây chỉ là gợi ý cho trình soạn thảo. Lúc chạy vẫn dùng `isUpid()` — định dạng UPID rất đặc
+thù nên không nhầm được, và cách đó không lỗi thời khi Proxmox đổi API.
+
+### Property string sinh kiểu được nhiều hơn dự kiến
+
+Kế hoạch định viết tay 15 model. Thực tế Proxmox nhúng sẵn sub-schema cho 93 tham số ngay
+trong `apidoc.js` — `net[n]` có 24 khoá, `scsi[n]` 50 khoá, `virtio[n]` 44 khoá. Đã sinh tự
+động thành `PVE_PROPERTY_SCHEMAS` (63 KB, 44 schema).
+
+Phần còn phải viết tay là những trường chỉ có **tên** định dạng mà `apidoc.js` không kèm
+định nghĩa: `pve-qm-boot`, `pve-qm-hostpci`, `pve-qm-ipconfig`, `pve-qm-cicustom`,
+`pve-vm-cpu-conf`. Chưa làm, và chỉ cần khi dựng form phần cứng ở giai đoạn 4.
+
+Cơ chế **bí danh** trong sub-schema là chỗ dễ sai nhất: `net` khai báo
+`{"e1000": {"alias":"macaddr","keyAlias":"model"}}`, nghĩa là `net0: "e1000=AA:BB:…"` phải
+nở thành `model=e1000` cộng `macaddr=AA:BB:…`. Không xử lý thì phân tích card mạng ra sai
+hoàn toàn. Có test riêng.
 
 ---
 
-## 6. Câu hỏi để ngỏ
+## 6. Việc tiếp theo — giai đoạn 2
+
+Mục tiêu: **quản lý nhiều kết nối, xác thực, IPC, TLS**. Ước lượng 2 tuần.
+
+1. **Vault**: `better-sqlite3` (chưa cài — là native module, cần `electron-rebuild`; nhớ đặt
+   ở `dependencies` chứ không phải dev để electron-builder đóng gói kèm) + `safeStorage`
+   dạng async. **Không bao giờ** ghi ticket hay CSRF token xuống đĩa.
+2. **Năm kênh IPC** như mô tả trong `packages/pve-ipc/src/channels.ts`. Bộ kiểm danh sách
+   trắng dùng `findEndpoint()` của `@pve/api` — đã có sẵn và đã test.
+3. **TOFU chứng chỉ**: `https.Agent` với `checkServerIdentity` tuỳ biến so khớp
+   `fingerprint256`. Xoá `apps/mock-server/tls/` rồi khởi động lại mock là mô phỏng được
+   tình huống vân tay đổi.
+4. **Luồng TFA**: mock đã hỗ trợ sẵn — tài khoản `tfa@pve` trả `NeedTFA: 1`, mã OTP `123456`.
+5. **Giao diện quản lý kết nối** + thanh chuyển cluster. Chạy mock hai lần trên hai cổng
+   khác nhau để giả lập hai cluster.
+6. **Gỡ bỏ** phiên console giả lập trong `apps/desktop/src/main/ipc/console.handlers.ts`
+   (đã đánh dấu `GỠ BỎ`) khi kết nối thật đã hoạt động.
+
+Lớp `TicketAuthProvider` và `TokenAuthProvider` đã viết xong và đã test trong `@pve/api` —
+giai đoạn 2 chỉ cần cắm chúng vào tiến trình main kèm transport có ghim chứng chỉ.
+
+---
+
+## 7. Câu hỏi để ngỏ
 
 1. **Phải đọc advisory `PSA-2026-00014-1` trước khi bắt đầu giai đoạn 5.** PVE 9.2 vá lỗ hổng
    chiếm phiên VNC và roadmap nói client ngoài dùng `vncshell`/`vncproxy` phải thích ứng. Theo câu chữ

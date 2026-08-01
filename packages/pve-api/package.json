@@ -1,0 +1,19 @@
+{
+  "name": "@pve/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Client Proxmox VE có kiểu, sinh từ schema chính thức",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "node scripts/generate.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pve/schema": "*"
+  }
+}

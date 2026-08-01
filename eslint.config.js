@@ -14,6 +14,10 @@ export default tseslint.config(
       // sửa theo ý lint là mất ngay ở lần sinh lại kế tiếp.
       'packages/pve-api/src/generated/**',
       'packages/pve-schema/generated/**',
+      // Bản tải về nguyên trạng từ Proxmox: 4.2 MB, phần lớn là mã ExtJS của
+      // trang API viewer. Không phải mã của dự án này.
+      'packages/pve-schema/raw/**',
+      'apps/mock-server/tls/**',
     ],
   },
 

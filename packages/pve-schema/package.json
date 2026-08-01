@@ -1,0 +1,19 @@
+{
+  "name": "@pve/schema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Schema API của Proxmox VE, tải từ apidoc.js và chuẩn hoá thành JSON dùng được",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./generated": "./generated/pve-9.2.schema.json"
+  },
+  "scripts": {
+    "fetch": "node scripts/fetch-apidoc.ts",
+    "normalize": "node scripts/normalize.ts",
+    "build": "npm run fetch && npm run normalize",
+    "typecheck": "tsc --noEmit"
+  }
+}

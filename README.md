@@ -2,9 +2,9 @@
 
 Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: Giai đoạn 0 — bộ khung.** Hiện có shell giao diện, hạ tầng i18n tiếng Việt,
-> và đường đi console đã được kiểm chứng đầu-cuối bằng shell giả lập. Chưa kết nối được
-> Proxmox thật; phần đó thuộc giai đoạn 1 và 2.
+> **Trạng thái: Giai đoạn 1 xong.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
+> động cho toàn bộ **675 endpoint**, và một máy chủ Proxmox giả lập phục vụ đủ ngần ấy
+> endpoint. Chưa có giao diện quản lý kết nối — phần đó thuộc giai đoạn 2.
 
 ## Chạy thử
 
@@ -28,15 +28,47 @@ npm run dev
 Vào mục **Console** ở thanh bên để mở shell giả lập. Gõ `help` để xem lệnh, và thử gõ
 tiếng Việt có dấu — đó chính là phép thử cho phần đóng khung UTF-8.
 
+## Máy chủ Proxmox giả lập
+
+Chưa có phần cứng thật thì đây là môi trường phát triển chính:
+
+```bash
+npm run dev:mock
+```
+
+Nó chạy ở `https://127.0.0.1:8006` với chứng chỉ tự ký, phục vụ **toàn bộ 675 endpoint**
+lấy từ schema chính thức của Proxmox VE 9.2.
+
+| | |
+|---|---|
+| Đăng nhập | Tên bất kỳ, mật khẩu bất kỳ **trừ** chuỗi `sai` |
+| Tài khoản có 2FA | `tfa@pve`, mã OTP giả lập `123456` |
+| API Token | `root@pam!automation=00000000-1111-2222-3333-444444444444` |
+
+Endpoint nào chưa có hành vi thật vẫn trả lời đúng hình dạng `returns` nhờ bộ sinh tự
+động, nên dựng được giao diện cho Ceph hay HA từ trước khi viết logic cho chúng.
+
+API điều khiển (ngoài `/api2`, chỉ dành cho phát triển):
+
+```bash
+curl -k -X POST https://127.0.0.1:8006/__mock/node/pve2/offline -H 'Content-Type: application/json' -d '{"offline":true}'
+```
+
+Còn có `/__mock/reset`, `/__mock/latency`, `/__mock/fail`, `/__mock/state`. Đây là cách
+dựng giao diện cho các trạng thái hỏng hóc khi không có cụm máy thật để phá.
+
 ## Các lệnh khác
 
 | Lệnh | Tác dụng |
 |---|---|
 | `npm run dev` | Chạy app ở chế độ phát triển, có HMR cho renderer |
-| `npm test` | Chạy toàn bộ test (giao thức termproxy + tích hợp relay) |
+| `npm run dev:mock` | Chạy máy chủ Proxmox giả lập |
+| `npm test` | Chạy toàn bộ test (121 bài) |
 | `npm run typecheck` | Kiểm tra kiểu cho cả main/preload và renderer |
 | `npm run build:win` | Đóng gói installer NSIS vào `apps/desktop/release/` |
 | `npm run lint` | Kiểm tra mã nguồn |
+| `npm run schema:fetch` | Tải lại `apidoc.js` từ Proxmox |
+| `npm run schema:generate` | Sinh lại client có kiểu từ schema |
 
 Kiểm tra nhanh xem app có khởi động sạch không (dùng được trong CI):
 

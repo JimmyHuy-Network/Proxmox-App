@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // Mã sinh tự động không tuân theo các quy tắc "sạch sẽ" — ví dụ nó khai báo
+    // tham số cho endpoint không dùng tới. Bắt bẻ chúng là vô nghĩa vì lần sinh
+    // sau sẽ ghi đè hết.
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.ts"]
+}

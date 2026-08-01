@@ -58,7 +58,11 @@ export class FakeShell {
   private cwd = '/root'
   private closed = false
 
-  constructor(private readonly write: (data: string) => void) {}
+  private readonly write: (data: string) => void
+
+  constructor(write: (data: string) => void) {
+    this.write = write
+  }
 
   /** Gửi MOTD và dấu nhắc đầu tiên. Gọi ngay sau khi client kết nối. */
   start(): void {

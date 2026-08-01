@@ -9,6 +9,14 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    // Node 24 chạy TypeScript trực tiếp bằng cách xoá kiểu, nhưng nó KHÔNG tự dò
+    // đuôi tệp — import tương đối bắt buộc phải ghi rõ `.ts`. Nhờ cờ này mà các
+    // script codegen và mock server chạy được bằng `node file.ts`, không cần build.
+    "allowImportingTsExtensions": true,
+    // Cấm mọi cú pháp TypeScript không xoá đi được: parameter property
+    // (`constructor(private readonly x)`), enum, namespace. Node từ chối chúng lúc
+    // chạy với thông báo khó hiểu, nên để trình biên dịch bắt trước còn hơn.
+    "erasableSyntaxOnly": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
@@ -21,8 +29,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
 
-    "declaration": true,
-    "declarationMap": true,
+    // Không package nào phát mã bằng tsc — Vite lo việc gộp bundle, còn các script
+    // chạy thẳng bằng Node. tsc ở đây chỉ để kiểm kiểu.
+    "noEmit": true,
     "sourceMap": true,
     "removeComments": false
   },
