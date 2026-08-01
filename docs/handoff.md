@@ -340,9 +340,8 @@ hoàn toàn. Có test riêng.
 
 ## 6. Việc tiếp theo — phần còn lại của giai đoạn 4
 
-Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Phần 1 và
-Hardware editable (CPU/RAM/đĩa/mạng) đã xong; phần việc lớn còn lại là wizard tạo mới và
-các loại thiết bị nâng cao.
+Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Phần lớn
+hạng mục plan §6 GĐ 4 đã xong; còn cloud-init/move-disk/E2E và vài góc mỏng.
 
 **Đã xong (gần đủ GĐ 4 theo plan.md):**
 1. `<PveGrid>` / `<PveForm>` + Dashboard từ store `resources`.
