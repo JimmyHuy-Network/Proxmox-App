@@ -1,13 +1,21 @@
 import { useState } from 'react'
-import { App, Button, Form, Input, InputNumber, Modal, Select, Space } from 'antd'
-import { CopyOutlined, ColumnWidthOutlined, SwapOutlined } from '@ant-design/icons'
+import { App, Button, Checkbox, Form, Input, InputNumber, Modal, Select, Space } from 'antd'
+import {
+  ColumnWidthOutlined,
+  CopyOutlined,
+  DatabaseOutlined,
+  FileProtectOutlined,
+  SwapOutlined,
+} from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { isUpid } from '@pve/api'
-import { pveRequest } from '../../lib/pve'
+import { pveQueryKey, pveRequest } from '../../lib/pve'
 import { useTasks } from '../../stores/tasks'
 import { PveForm } from '../../components/PveForm'
+import { TaskButton } from '../../components/TaskButton'
 
-type Op = 'clone' | 'migrate' | 'resize' | null
+type Op = 'clone' | 'migrate' | 'resize' | 'move' | null
 
 interface CloneValues {
   [key: string]: unknown
@@ -15,6 +23,7 @@ interface CloneValues {
   name?: string
   hostname?: string
   target?: string
+  snapname?: string
 }
 
 interface MigrateValues {
@@ -28,9 +37,15 @@ interface ResizeValues {
   size: string
 }
 
+interface MoveValues {
+  [key: string]: unknown
+  disk: string
+  storage: string
+  delete?: boolean
+}
+
 /**
- * Thao tác clone / migrate / resize trên overview guest — gọi API trả UPID
- * và ghi vào TaskDock.
+ * Thao tác clone / migrate / resize / move-disk / template trên overview guest.
  */
 export function GuestOps({
   connectionId,
@@ -40,6 +55,8 @@ export function GuestOps({
   nodes,
   diskKeys,
   nextId,
+  isTemplate,
+  snapshots,
 }: {
   connectionId: string
   node: string
@@ -48,11 +65,22 @@ export function GuestOps({
   nodes: string[]
   diskKeys: string[]
   nextId?: number
+  isTemplate?: boolean
+  snapshots?: string[]
 }): React.JSX.Element {
   const { t } = useTranslation()
   const { message } = App.useApp()
   const addTask = useTasks((s) => s.addTask)
   const [op, setOp] = useState<Op>(null)
+
+  const storagesQuery = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/nodes/{node}/storage', { node }),
+    queryFn: () =>
+      pveRequest<{ storage: string; content?: string }[]>(connectionId, 'GET', '/nodes/{node}/storage', {
+        node,
+      }),
+    enabled: op === 'move',
+  })
 
   const run = async (method: 'POST' | 'PUT', path: string, params: Record<string, unknown>): Promise<void> => {
     const result = await pveRequest<unknown>(connectionId, method, path, params)
@@ -64,6 +92,12 @@ export function GuestOps({
   }
 
   const base = `/nodes/{node}/${type}/{vmid}`
+  const storageOptions = (storagesQuery.data ?? [])
+    .filter((s) => {
+      const content = (s.content ?? '').split(',')
+      return type === 'lxc' ? content.includes('rootdir') || content.includes('images') : content.includes('images')
+    })
+    .map((s) => ({ value: s.storage, label: s.storage }))
 
   return (
     <>
@@ -71,7 +105,7 @@ export function GuestOps({
         <Button size="small" icon={<CopyOutlined />} onClick={() => setOp('clone')}>
           {t('guest.opsClone')}
         </Button>
-        <Button size="small" icon={<SwapOutlined />} onClick={() => setOp('migrate')}>
+        <Button size="small" icon={<SwapOutlined />} onClick={() => setOp('migrate')} disabled={nodes.length < 2}>
           {t('guest.opsMigrate')}
         </Button>
         <Button
@@ -82,6 +116,43 @@ export function GuestOps({
         >
           {t('guest.opsResize')}
         </Button>
+        <Button
+          size="small"
+          icon={<DatabaseOutlined />}
+          disabled={diskKeys.length === 0}
+          onClick={() => setOp('move')}
+        >
+          {type === 'qemu' ? t('guest.opsMoveDisk') : t('guest.opsMoveVolume')}
+        </Button>
+        {isTemplate ? null : type === 'qemu' ? (
+          <TaskButton
+            connectionId={connectionId}
+            method="POST"
+            path={`${base}/template`}
+            params={{ node, vmid }}
+            label={t('guest.opsTemplate')}
+            icon={<FileProtectOutlined />}
+            size="small"
+            confirmMessage={t('guest.opsTemplateConfirm')}
+          />
+        ) : (
+          <Button
+            size="small"
+            icon={<FileProtectOutlined />}
+            onClick={() => {
+              void (async () => {
+                try {
+                  await pveRequest(connectionId, 'POST', `${base}/template`, { node, vmid })
+                  message.success(t('guest.opsTemplateDone'))
+                } catch (error) {
+                  message.error(error instanceof Error ? error.message : t('guest.opsTemplate'))
+                }
+              })()
+            }}
+          >
+            {t('guest.opsTemplate')}
+          </Button>
+        )}
       </Space>
 
       <Modal
@@ -94,9 +165,8 @@ export function GuestOps({
         <PveForm<CloneValues>
           initialValues={{
             newid: nextId ?? vmid + 1,
-            name: type === 'qemu' ? undefined : undefined,
-            hostname: type === 'lxc' ? undefined : undefined,
             target: node,
+            snapname: undefined,
           }}
           submitText={t('guest.opsClone')}
           extra={<Button onClick={() => setOp(null)}>{t('common.cancel')}</Button>}
@@ -108,6 +178,7 @@ export function GuestOps({
               target: values.target,
               ...(type === 'qemu' && values.name ? { name: values.name } : {}),
               ...(type === 'lxc' && values.hostname ? { hostname: values.hostname } : {}),
+              ...(values.snapname ? { snapname: values.snapname } : {}),
             })
           }}
         >
@@ -126,6 +197,15 @@ export function GuestOps({
           <Form.Item name="target" label={t('guest.opsTargetNode')}>
             <Select options={nodes.map((n) => ({ value: n, label: n }))} />
           </Form.Item>
+          {(snapshots?.length ?? 0) > 0 ? (
+            <Form.Item name="snapname" label={t('guest.opsSnapname')} help={t('guest.opsSnapnameHelp')}>
+              <Select
+                allowClear
+                options={(snapshots ?? []).map((s) => ({ value: s, label: s }))}
+                placeholder={t('guest.opsSnapnameNone')}
+              />
+            </Form.Item>
+          ) : null}
         </PveForm>
       </Modal>
 
@@ -180,6 +260,57 @@ export function GuestOps({
             help={t('guest.opsSizeHelp')}
           >
             <Input placeholder="+8G or 64G" />
+          </Form.Item>
+        </PveForm>
+      </Modal>
+
+      <Modal
+        open={op === 'move'}
+        title={type === 'qemu' ? t('guest.opsMoveDisk') : t('guest.opsMoveVolume')}
+        footer={null}
+        onCancel={() => setOp(null)}
+        destroyOnHidden
+      >
+        <PveForm<MoveValues>
+          initialValues={{
+            disk: diskKeys[0] ?? '',
+            storage: storageOptions[0]?.value ?? 'local-lvm',
+            delete: true,
+          }}
+          submitText={type === 'qemu' ? t('guest.opsMoveDisk') : t('guest.opsMoveVolume')}
+          extra={<Button onClick={() => setOp(null)}>{t('common.cancel')}</Button>}
+          onFinish={async (values) => {
+            if (type === 'qemu') {
+              await run('POST', `${base}/move_disk`, {
+                node,
+                vmid,
+                disk: values.disk,
+                storage: values.storage,
+                delete: values.delete ? 1 : 0,
+              })
+            } else {
+              await run('POST', `${base}/move_volume`, {
+                node,
+                vmid,
+                volume: values.disk,
+                storage: values.storage,
+                delete: values.delete ? 1 : 0,
+              })
+            }
+          }}
+        >
+          <Form.Item
+            name="disk"
+            label={type === 'qemu' ? t('guest.opsDisk') : t('guest.opsVolume')}
+            rules={[{ required: true }]}
+          >
+            <Select options={diskKeys.map((d) => ({ value: d, label: d }))} />
+          </Form.Item>
+          <Form.Item name="storage" label={t('guest.hardwareStorage')} rules={[{ required: true }]}>
+            <Select options={storageOptions} loading={storagesQuery.isLoading} />
+          </Form.Item>
+          <Form.Item name="delete" valuePropName="checked">
+            <Checkbox>{t('guest.opsMoveDelete')}</Checkbox>
           </Form.Item>
         </PveForm>
       </Modal>

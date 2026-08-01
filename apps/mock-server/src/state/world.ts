@@ -133,6 +133,13 @@ export class World {
     this.state.guests.push(guest)
   }
 
+  /** Xóa guest theo vmid (destroy VM/CT). */
+  removeGuest(vmid: number): boolean {
+    const before = this.state.guests.length
+    this.state.guests = this.state.guests.filter((g) => g.vmid !== vmid)
+    return this.state.guests.length < before
+  }
+
   storage(name: string): MockStorage | undefined {
     return this.state.storages.find((s) => s.storage === name)
   }

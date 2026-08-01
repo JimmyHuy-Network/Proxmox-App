@@ -257,6 +257,18 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 400, log: 'thay đổi kích thước volume' },
     { atMs: 1200, done: 'OK' },
   ],
+  qmtemplate: [
+    { atMs: 400, log: 'chuyển đĩa sang base image' },
+    { atMs: 1500, done: 'OK' },
+  ],
+  qmmove: [
+    { atMs: 400, log: 'sao chép đĩa sang storage đích' },
+    { atMs: 2000, done: 'OK' },
+  ],
+  vzmove: [
+    { atMs: 400, log: 'sao chép volume sang storage đích' },
+    { atMs: 1800, done: 'OK' },
+  ],
   // Đối chiếu với PVE 9.2.2 thật: type task của snapshot LXC là vzsnapshot/
   // vzdelsnapshot, khác hẳn qmsnapshot dùng cho QEMU — không dùng chung tên.
   vzsnapshot: [

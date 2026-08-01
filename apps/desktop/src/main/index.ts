@@ -8,7 +8,7 @@ import { registerConsoleHandlers } from './ipc/console.handlers'
 import { registerPveHandlers } from './ipc/pve.handlers'
 import { registerVaultHandlers } from './ipc/vault.handlers'
 import { registerStreamHandlers } from './ipc/stream.handlers'
-import { SafeStorageEncryptor } from './security/encryptor'
+import { E2ePlainEncryptor, SafeStorageEncryptor } from './security/encryptor'
 import { Vault } from './security/vault'
 import { ConnectionPool } from './pve/connection-pool'
 import { ResourcePoller } from './pve/resource-poller'
@@ -49,7 +49,11 @@ async function bootstrap(): Promise<void> {
 
   // Kho kết nối + connection pool. Vault nằm trong userData; secret mã hóa bằng
   // DPAPI (safeStorage), ticket/CSRF chỉ giữ trong bộ nhớ pool.
-  const vault = new Vault(join(app.getPath('userData'), 'vault.json'), new SafeStorageEncryptor())
+  // E2E headless: dùng plaintext encryptor vì libsecret thường không có.
+  const encryptor = process.env['PVE_E2E_MOCK_URL']
+    ? new E2ePlainEncryptor()
+    : new SafeStorageEncryptor()
+  const vault = new Vault(join(app.getPath('userData'), 'vault.json'), encryptor)
   const pool = new ConnectionPool(vault, (id, phase, message) => {
     pushEvent({ kind: 'auth', connectionId: id, phase: phase as AuthEvent['phase'], ...(message ? { message } : {}) })
   })
@@ -81,6 +85,27 @@ async function bootstrap(): Promise<void> {
   registerStreamHandlers(resourcePoller)
   registerAppHandlers()
 
+  // Playwright / E2E: ghi vault trước khi mở cửa sổ để `refresh()` lúc mount thấy
+  // connection; `pool.connect` chạy sau did-finish-load để sự kiện auth không mất.
+  let e2eConnectionId: string | null = null
+  const e2eMockUrl = process.env['PVE_E2E_MOCK_URL']
+  if (e2eMockUrl) {
+    try {
+      const u = new URL(e2eMockUrl)
+      e2eConnectionId = vault.upsert({
+        name: 'e2e-mock',
+        host: u.hostname,
+        port: Number(u.port || 8006),
+        authMode: 'ticket',
+        username: process.env['PVE_E2E_USER'] ?? 'root@pam',
+        password: process.env['PVE_E2E_PASSWORD'] ?? 'x',
+        allowSelfSigned: true,
+      }).id
+    } catch (error) {
+      console.error('PVE_E2E_MOCK_URL: không ghi được vault', error)
+    }
+  }
+
   app.on('will-quit', () => {
     pool.closeAll()
     resourcePoller.stopAll()
@@ -92,6 +117,17 @@ async function bootstrap(): Promise<void> {
   })
 
   const window = createMainWindow()
+
+  if (e2eMockUrl && e2eConnectionId) {
+    const connectionId = e2eConnectionId
+    window.webContents.once('did-finish-load', () => {
+      setTimeout(() => {
+        void pool.connect(connectionId).catch((error: unknown) => {
+          console.error('PVE_E2E_MOCK_URL: không kết nối được mock', error)
+        })
+      }, 800)
+    })
+  }
 
   if (process.env['PVE_SMOKE_TEST'] === '1') runSmokeTest(window)
 

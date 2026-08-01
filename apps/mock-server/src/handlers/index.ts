@@ -188,9 +188,86 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     )
   })
 
-  on('GET', '/nodes/{node}/tasks', ({ input, mock }) =>
-    mock.tasks.list(String(input['node'])).map(taskSummary),
+  on('GET', '/nodes/{node}/tasks', ({ input, mock }) => {
+    let rows = mock.tasks.list(String(input['node']))
+    if (input['vmid'] !== undefined && input['vmid'] !== null && input['vmid'] !== '') {
+      const vmid = String(input['vmid'])
+      rows = rows.filter((t) => t.id === vmid)
+    }
+    if (typeof input['typefilter'] === 'string' && input['typefilter'] !== '') {
+      rows = rows.filter((t) => t.type === input['typefilter'])
+    }
+    const start = Number(input['start'] ?? 0)
+    const limit = Number(input['limit'] ?? 50)
+    return rows.slice(start, start + limit).map(taskSummary)
+  })
+
+  // ── ACL (mỏng — đủ tab quyền guest; Access đầy đủ ở GĐ 8) ─────────────────
+  on('GET', '/access/acl', ({ mock }) =>
+    mock.acls.map((a) => ({
+      path: a.path,
+      ugid: a.ugid,
+      type: a.type,
+      roleid: a.roleid,
+      ...(a.propagate !== undefined ? { propagate: a.propagate } : {}),
+    })),
   )
+
+  on('PUT', '/access/acl', ({ input, mock }) => {
+    const path = String(input['path'] ?? '')
+    if (!path) throw new HttpError(400, 'Parameter verification failed. (path: property is missing)')
+    const roles = String(input['roles'] ?? '')
+      .split(',')
+      .map((r) => r.trim())
+      .filter(Boolean)
+    if (roles.length === 0) {
+      throw new HttpError(400, 'Parameter verification failed. (roles: property is missing)')
+    }
+    const users = String(input['users'] ?? '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean)
+    const groups = String(input['groups'] ?? '')
+      .split(',')
+      .map((g) => g.trim())
+      .filter(Boolean)
+    const tokens = String(input['tokens'] ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    if (users.length + groups.length + tokens.length === 0) {
+      throw new HttpError(400, 'no users/groups/tokens specified')
+    }
+    const del = input['delete'] === 1 || input['delete'] === true || input['delete'] === '1'
+    const propagate =
+      input['propagate'] === 0 || input['propagate'] === false || input['propagate'] === '0' ? 0 : 1
+
+    const entries: { ugid: string; type: 'user' | 'group' | 'token' }[] = [
+      ...users.map((ugid) => ({ ugid, type: 'user' as const })),
+      ...groups.map((ugid) => ({ ugid, type: 'group' as const })),
+      ...tokens.map((ugid) => ({ ugid, type: 'token' as const })),
+    ]
+
+    for (const entry of entries) {
+      for (const roleid of roles) {
+        if (del) {
+          mock.acls = mock.acls.filter(
+            (a) =>
+              !(a.path === path && a.ugid === entry.ugid && a.type === entry.type && a.roleid === roleid),
+          )
+        } else {
+          const exists = mock.acls.some(
+            (a) =>
+              a.path === path && a.ugid === entry.ugid && a.type === entry.type && a.roleid === roleid,
+          )
+          if (!exists) {
+            mock.acls.push({ path, ugid: entry.ugid, type: entry.type, roleid, propagate })
+          }
+        }
+      }
+    }
+    return null
+  })
 
   on('GET', '/nodes/{node}/tasks/{upid}/status', ({ input, mock }) => {
     const task = mock.tasks.get(String(input['upid']))
@@ -388,11 +465,17 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
         id: String(vmid),
         user: auth.username,
         onSuccess: () => {
+          // Parent = snapshot lá hiện tại (không có con), hoặc snapshot mới nhất.
+          const children = new Set(guest.snapshots.map((s) => s.parent).filter(Boolean))
+          const leaf =
+            [...guest.snapshots].reverse().find((s) => !children.has(s.name)) ??
+            guest.snapshots.at(-1)
           const snapshot: MockSnapshot = {
             name,
             description: typeof input['description'] === 'string' ? input['description'] : '',
             snaptime: Math.floor(Date.now() / 1000),
             vmstate: input['vmstate'] === 1 || input['vmstate'] === '1',
+            ...(leaf ? { parent: leaf.name } : {}),
           }
           guest.snapshots.push(snapshot)
         },
@@ -415,7 +498,18 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
         id: String(vmid),
         user: auth.username,
         onSuccess: () => {
-          guest.snapshots = guest.snapshots.filter((s) => s.name !== name)
+          const removed = guest.snapshots.find((s) => s.name === name)
+          guest.snapshots = guest.snapshots
+            .filter((s) => s.name !== name)
+            .map((s) =>
+              s.parent === name
+                ? { ...s, ...(removed?.parent ? { parent: removed.parent } : { parent: undefined }) }
+                : s,
+            )
+          // Xóa field parent nếu undefined để JSON sạch.
+          for (const s of guest.snapshots) {
+            if (s.parent === undefined) delete s.parent
+          }
         },
       })
     })
@@ -453,6 +547,14 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
           ? String(input['name'] ?? `${source.name}-clone`)
           : String(input['hostname'] ?? `${source.name}-clone`)
 
+      const snapname =
+        typeof input['snapname'] === 'string' && input['snapname'] !== ''
+          ? String(input['snapname'])
+          : undefined
+      if (snapname && !source.snapshots.some((s) => s.name === snapname)) {
+        throw new HttpError(500, `snapshot '${snapname}' does not exist`)
+      }
+
       return runTask(mock, {
         node,
         type: type === 'qemu' ? 'qmclone' : 'vzclone',
@@ -474,6 +576,11 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
           }
           if (type === 'qemu') cloned.config['name'] = cloneName
           else cloned.config['hostname'] = cloneName
+          if (snapname) {
+            const note = `cloned-from-snapshot:${snapname}`
+            const prev = typeof cloned.config['description'] === 'string' ? cloned.config['description'] : ''
+            cloned.config['description'] = prev ? `${prev}; ${note}` : note
+          }
           mock.world.addGuest(cloned)
         },
       })
@@ -524,6 +631,153 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
       })
     })
 
+    // ── Convert template ───────────────────────────────────────────────────
+    on('POST', `/nodes/{node}/${type}/{vmid}/template`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      if (guest.template) throw new HttpError(500, 'guest is already a template')
+      if (guest.status !== 'stopped') {
+        throw new HttpError(500, "can't convert a running VM to a template")
+      }
+
+      const apply = (): void => {
+        guest.template = true
+        guest.config['template'] = 1
+        // Đổi tên volume `vm-` → `base-` giống hành vi PVE khi convert.
+        for (const [key, raw] of Object.entries(guest.config)) {
+          if (typeof raw !== 'string') continue
+          if (!/^(scsi|virtio|ide|sata|efidisk|tpmstate|rootfs|mp)\d*$/.test(key)) continue
+          guest.config[key] = raw.replace(/:vm-/, ':base-')
+        }
+      }
+
+      if (type === 'lxc') {
+        apply()
+        return null
+      }
+      return runTask(mock, {
+        node,
+        type: 'qmtemplate',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: apply,
+      })
+    })
+
+    // ── Move disk / volume ─────────────────────────────────────────────────
+    if (type === 'qemu') {
+      on('POST', `/nodes/{node}/qemu/{vmid}/move_disk`, ({ input, mock, auth }) => {
+        const node = String(input['node'])
+        const vmid = num(input['vmid'])
+        const guest = requireGuest(mock, node, vmid, 'qemu')
+        const disk = String(input['disk'] ?? '')
+        const storage = String(input['storage'] ?? '')
+        if (!disk || !(disk in guest.config)) {
+          throw new HttpError(500, `disk '${disk}' does not exist`)
+        }
+        if (!storage) throw new HttpError(400, 'missing storage')
+        if (!mock.world.storage(storage)) throw new HttpError(500, 'storage does not exist')
+        const del = input['delete'] === 1 || input['delete'] === true || input['delete'] === '1'
+
+        return runTask(mock, {
+          node,
+          type: 'qmmove',
+          id: String(vmid),
+          user: auth.username,
+          onSuccess: () => {
+            const prev = String(guest.config[disk])
+            guest.config[disk] = rewriteVolumeStorage(prev, storage, vmid)
+            if (!del) {
+              const unusedKey = nextUnusedKey(guest.config)
+              guest.config[unusedKey] = volumeFileOnly(prev)
+            }
+          },
+        })
+      })
+    } else {
+      on('POST', `/nodes/{node}/lxc/{vmid}/move_volume`, ({ input, mock, auth }) => {
+        const node = String(input['node'])
+        const vmid = num(input['vmid'])
+        const guest = requireGuest(mock, node, vmid, 'lxc')
+        const volume = String(input['volume'] ?? '')
+        const storage = String(input['storage'] ?? '')
+        if (!volume || !(volume in guest.config)) {
+          throw new HttpError(500, `volume '${volume}' does not exist`)
+        }
+        if (!storage) throw new HttpError(400, 'missing storage')
+        if (!mock.world.storage(storage)) throw new HttpError(500, 'storage does not exist')
+        const del = input['delete'] === 1 || input['delete'] === true || input['delete'] === '1'
+
+        return runTask(mock, {
+          node,
+          type: 'vzmove',
+          id: String(vmid),
+          user: auth.username,
+          onSuccess: () => {
+            const prev = String(guest.config[volume])
+            guest.config[volume] = rewriteVolumeStorage(prev, storage, vmid)
+            if (!del) {
+              const unusedKey = nextUnusedKey(guest.config)
+              guest.config[unusedKey] = volumeFileOnly(prev)
+            }
+          },
+        })
+      })
+    }
+
+    // ── Destroy guest ──────────────────────────────────────────────────────
+    on('DELETE', `/nodes/{node}/${type}/{vmid}`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      if (guest.config['protection'] === 1 || guest.config['protection'] === '1') {
+        throw new HttpError(500, 'VM is protected')
+      }
+      return runTask(mock, {
+        node,
+        type: `${prefix}destroy`,
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          mock.world.removeGuest(vmid)
+        },
+      })
+    })
+
+    // ── Cloud-init (QEMU) ──────────────────────────────────────────────────
+    if (type === 'qemu') {
+      on('GET', '/nodes/{node}/qemu/{vmid}/cloudinit', ({ input, mock }) => {
+        const guest = requireGuest(mock, String(input['node']), num(input['vmid']), 'qemu')
+        const keys = [
+          'ciuser',
+          'cipassword',
+          'citype',
+          'ciupgrade',
+          'nameserver',
+          'searchdomain',
+          'sshkeys',
+          'ipconfig0',
+        ]
+        return keys
+          .filter((k) => guest.config[k] !== undefined)
+          .map((key) => ({ key, value: String(guest.config[key]) }))
+      })
+
+      on('PUT', '/nodes/{node}/qemu/{vmid}/cloudinit', ({ input, mock }) => {
+        requireGuest(mock, String(input['node']), num(input['vmid']), 'qemu')
+        // Regenerated — mock ghi nhận bằng cách gắn cờ nhẹ (không bắt buộc UI).
+        return null
+      })
+
+      on('GET', '/nodes/{node}/qemu/{vmid}/cloudinit/dump', ({ input, mock }) => {
+        const guest = requireGuest(mock, String(input['node']), num(input['vmid']), 'qemu')
+        const user = guest.config['ciuser'] ?? 'ubuntu'
+        const ns = guest.config['nameserver'] ?? '1.1.1.1'
+        return `#cloud-config\nuser: ${user}\nnameserver: ${ns}\n`
+      })
+    }
+
     // ── RRD ────────────────────────────────────────────────────────────────
     on('GET', `/nodes/{node}/${type}/{vmid}/rrddata`, ({ input, mock }) => {
       const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
@@ -547,6 +801,9 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
         if (guest.lock) {
           throw new HttpError(500, `VM is locked (${guest.lock})`)
+        }
+        if (action === 'start' && guest.template) {
+          throw new HttpError(500, "can't start a template")
         }
         if (action === 'start' && guest.status === 'running') {
           throw new HttpError(500, `${type === 'qemu' ? 'VM' : 'CT'} ${vmid} already running`)
@@ -819,6 +1076,27 @@ function buildLxcGuestFromCreate(
     config,
     snapshots: [],
   }
+}
+
+/** Đổi tiền tố storage trong property string volume (`local-lvm:vm-100-disk-0,...`). */
+function rewriteVolumeStorage(raw: string, storage: string, vmid: number): string {
+  const comma = raw.indexOf(',')
+  const head = comma >= 0 ? raw.slice(0, comma) : raw
+  const rest = comma >= 0 ? raw.slice(comma) : ''
+  const colon = head.indexOf(':')
+  const volName = colon >= 0 ? head.slice(colon + 1) : `vm-${vmid}-disk-0`
+  return `${storage}:${volName}${rest}`
+}
+
+function volumeFileOnly(raw: string): string {
+  const comma = raw.indexOf(',')
+  return comma >= 0 ? raw.slice(0, comma) : raw
+}
+
+function nextUnusedKey(config: Record<string, string | number>): string {
+  let i = 0
+  while (`unused${i}` in config) i += 1
+  return `unused${i}`
 }
 
 /** Áp dụng `size` dạng `32G` hoặc `+8G` vào property string đĩa/rootfs. */

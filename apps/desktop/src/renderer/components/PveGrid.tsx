@@ -29,6 +29,7 @@ export function PveGrid<T extends Record<string, unknown>>({
   toolbar,
   emptyText,
   onRow,
+  transform,
 }: {
   connectionId: string
   method: PveHttpMethod
@@ -42,6 +43,8 @@ export function PveGrid<T extends Record<string, unknown>>({
   toolbar?: React.ReactNode
   emptyText?: string
   onRow?: TableProps<T>['onRow']
+  /** Sắp xếp / gắn metadata trước khi lọc và render (vd. cây snapshot). */
+  transform?: (rows: T[]) => T[]
 }): React.JSX.Element {
   const [query, setQuery] = useState('')
   const q = useQuery({
@@ -50,7 +53,7 @@ export function PveGrid<T extends Record<string, unknown>>({
     ...(refetchInterval !== undefined ? { refetchInterval } : {}),
   })
 
-  const rows = q.data ?? []
+  const rows = transform ? transform(q.data ?? []) : (q.data ?? [])
   const filtered = search && query.trim() !== '' ? rows.filter((r) => search(r, query)) : rows
 
   return (

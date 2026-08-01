@@ -2,12 +2,11 @@
 
 Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: giữa giai đoạn 4.** Có bộ khung Electron, client Proxmox có kiểu sinh tự
-> động cho **675 endpoint**, máy chủ giả lập, **quản lý nhiều kết nối** đầy đủ (vault, TOFU
-> chứng chỉ, TFA), và **cây tài nguyên trực tiếp**: poller `/cluster/resources` trong main,
-> dock tác vụ theo dõi UPID tự động, biểu đồ RRD (uPlot). Guest có trang chi tiết dạng tab
-> (Tổng quan / Phần cứng / Snapshot / Options): Hardware đầy đủ, **wizard tạo VM/CT**,
-> clone/migrate/resize. Còn cloud-init form, move-disk, E2E Playwright.
+> **Trạng thái: hết giai đoạn 4 → sẵn sàng giai đoạn 5 (Console).** Bộ khung Electron, client
+> Proxmox có kiểu cho **675 endpoint**, mock server, vault/TOFU/TFA, cây tài nguyên + TaskDock
+> + RRD. Guest đầy đủ lifecycle GĐ 4: Hardware (kể cả CD/USB/PCI/EFI), Cloud-Init, Options,
+> snapshot cây, wizard VM/CT, clone/migrate/resize/move-disk, template, ACL/task, destroy,
+> E2E API + Playwright `_electron`.
 
 ## Thử luồng đầy đủ
 

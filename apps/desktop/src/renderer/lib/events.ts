@@ -17,6 +17,12 @@ export function subscribePveEvents(): () => void {
     switch (event.kind) {
       case 'auth':
         useConnections.getState().setPhase(event.connectionId, event.phase)
+        // E2E / kết nối từ main: đảm bảo activeId + list đồng bộ khi vừa authenticated.
+        if (event.phase === 'authenticated') {
+          const state = useConnections.getState()
+          if (!state.activeId) state.setActive(event.connectionId)
+          void state.refresh()
+        }
         break
 
       case 'resources':

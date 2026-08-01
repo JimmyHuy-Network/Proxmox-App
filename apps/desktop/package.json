@@ -11,7 +11,8 @@
     "build": "npm run typecheck && electron-vite build",
     "build:win": "npm run build && electron-builder --win",
     "build:unpack": "npm run build && electron-builder --dir",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test:electron-e2e": "npm run build && ELECTRON_E2E=1 xvfb-run -a npx vitest run electron-e2e --config ../../vitest.config.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@ant-design/icons": "^6.3.2",
     "@novnc/novnc": "^1.7.0",
+    "@playwright/test": "^1.62.1",
     "@pve/api": "^0.1.0",
     "@pve/ipc": "*",
     "@pve/mock-server": "^0.1.0",
