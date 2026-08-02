@@ -66,16 +66,21 @@ describe.skipIf(!enabled)('Playwright electron phase 9 settings', () => {
 
   it('đổi ngôn ngữ sang English', async () => {
     await page.getByRole('link', { name: /Cài đặt|Settings/i }).click()
-    const select = page.locator('.ant-select').first()
-    await select.click()
-    await page.locator('.ant-select-item-option').filter({ hasText: 'English' }).click()
+    await page.getByRole('combobox', { name: /Ngôn ngữ|Language/i }).click()
+    const option = page
+      .locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option')
+      .filter({ hasText: /^English$/ })
+    await option.waitFor({ state: 'visible', timeout: 15_000 })
+    await option.click()
     await pwExpect(page.getByRole('link', { name: /^Settings$/i })).toBeVisible({ timeout: 10_000 })
   }, 60_000)
 
   it('mở modal phím tắt từ Settings', async () => {
     await page.getByRole('link', { name: /Settings|Cài đặt/i }).click()
     await page.getByRole('button', { name: /Keyboard shortcuts|Phím tắt/i }).click()
-    await page.getByText(/Ctrl\/Cmd \+ ,/i).waitFor({ timeout: 10_000 })
-    await page.getByRole('button', { name: /Close|Đóng/i }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByText(/Ctrl\/Cmd \+ ,/i).waitFor({ timeout: 10_000 })
+    // Footer «Đóng/Close» — tránh trùng với nút X aria-label="Close" của antd.
+    await dialog.locator('.ant-modal-footer').getByRole('button').click()
   }, 60_000)
 })

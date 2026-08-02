@@ -25,15 +25,12 @@ MVP — parity tính năng lớn đã có từ GĐ 0–8; GĐ 9 bổ sung vận 
 | **Tài liệu** nested PVE + quyết định ký số | Xong, GĐ 9 |
 | **Ký số Windows / icon riêng** | Chưa mua cert — xem [decision-windows-signing.md](decision-windows-signing.md) |
 
-### Kiểm chứng
+### Kiểm chứng (đã chạy trên cloud agent)
 
 ```bash
-npm test && npm run typecheck && npm run lint
-```
-
-```bash
-# E2E (sau build desktop)
-ELECTRON_E2E=1 xvfb-run -a npx vitest run apps/desktop/electron-e2e
+npm test && npm run typecheck && npm run lint   # 265 tests pass
+npm run build --workspace=@pve/desktop
+ELECTRON_E2E=1 xvfb-run -a npx vitest run apps/desktop/electron-e2e   # 9/9 pass
 ```
 
 ```bash
