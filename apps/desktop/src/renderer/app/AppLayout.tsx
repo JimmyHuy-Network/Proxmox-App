@@ -7,6 +7,9 @@ import {
   DashboardOutlined,
   DownOutlined,
   FileSearchOutlined,
+  TeamOutlined,
+  ApartmentOutlined,
+  FireOutlined,
 } from '@ant-design/icons'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -165,6 +168,21 @@ export function AppLayout(): React.JSX.Element {
                 key: '/cluster',
                 icon: <ClusterOutlined />,
                 label: <Link to="/cluster">{t('nav.cluster')}</Link>,
+              },
+              {
+                key: '/access',
+                icon: <TeamOutlined />,
+                label: <Link to="/access">{t('nav.access')}</Link>,
+              },
+              {
+                key: '/firewall',
+                icon: <FireOutlined />,
+                label: <Link to="/firewall">{t('nav.firewall')}</Link>,
+              },
+              {
+                key: '/datacenter',
+                icon: <ApartmentOutlined />,
+                label: <Link to="/datacenter">{t('nav.datacenter')}</Link>,
               },
             ]}
           />

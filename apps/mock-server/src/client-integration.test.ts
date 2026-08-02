@@ -146,7 +146,7 @@ describe('đọc dữ liệu qua client có kiểu', () => {
 
   it('lấy danh sách realm xác thực', async () => {
     const domains = await client.request('GET', '/access/domains', {})
-    expect(domains.map((d) => d.realm).sort()).toEqual(['pam', 'pve'])
+    expect(domains.map((d) => d.realm).sort()).toEqual(['ad', 'ldap', 'oidc', 'pam', 'pve'])
   })
 
   it('lấy vmid trống kế tiếp', async () => {

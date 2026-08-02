@@ -8,6 +8,9 @@ import { applyStorageHandlers } from './storage.ts'
 import { applyNodeInfraHandlers } from './node-infra.ts'
 import { applyNodeSystemHandlers } from './node-system.ts'
 import { applyCephClusterHandlers } from './ceph-cluster.ts'
+import { applyAccessHandlers, ticketCapsFor, requirePriv } from './access.ts'
+import { applyFirewallHandlers } from './firewall.ts'
+import { applySdnHaHandlers } from './sdn-ha.ts'
 
 /**
  * Hành vi thật cho những endpoint quan trọng nhất.
@@ -48,7 +51,7 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
   // ── Xác thực ───────────────────────────────────────────────────────────────
 
-  on('POST', '/access/ticket', ({ input }) => {
+  on('POST', '/access/ticket', ({ input, mock }) => {
     const username = String(input['username'] ?? '')
     const password = String(input['password'] ?? '')
     const challenge = input['tfa-challenge']
@@ -78,25 +81,11 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
       ticket: result.ticket.ticket,
       CSRFPreventionToken: result.ticket.csrfToken,
       username: result.ticket.username,
-      clustername: 'pve-lab',
-      cap: { vms: { 'VM.Console': 1, 'VM.PowerMgmt': 1 }, nodes: { 'Sys.Audit': 1 } },
+      clustername: mock.world.current.clusterName || 'pve-lab',
+      // Cap theo ACL — vanhanh@pve (operators → PVEAuditor) không có VM.PowerMgmt.
+      cap: ticketCapsFor(mock, result.ticket.username),
     }
   })
-
-  on('GET', '/access/domains', () => [
-    { realm: 'pam', type: 'pam', comment: 'Linux PAM standard authentication' },
-    { realm: 'pve', type: 'pve', comment: 'Proxmox VE authentication server' },
-  ])
-
-  on('GET', '/access/users', ({ mock }) =>
-    mock.world.current.users.map((u) => ({
-      userid: u.userid,
-      enable: u.enable ? 1 : 0,
-      realm_type: u.realm,
-      ...(u.comment ? { comment: u.comment } : {}),
-      ...(u.groups ? { groups: u.groups } : {}),
-    })),
-  )
 
   // ── Cụm ────────────────────────────────────────────────────────────────────
 
@@ -173,8 +162,6 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     return entries
   })
 
-  on('GET', '/pools', ({ mock }) => mock.world.current.pools)
-
   // ── Node ───────────────────────────────────────────────────────────────────
 
   on('GET', '/nodes', ({ mock }) =>
@@ -233,73 +220,6 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     const start = Number(input['start'] ?? 0)
     const limit = Number(input['limit'] ?? 50)
     return rows.slice(start, start + limit).map(taskSummary)
-  })
-
-  // ── ACL (mỏng — đủ tab quyền guest; Access đầy đủ ở GĐ 8) ─────────────────
-  on('GET', '/access/acl', ({ mock }) =>
-    mock.acls.map((a) => ({
-      path: a.path,
-      ugid: a.ugid,
-      type: a.type,
-      roleid: a.roleid,
-      ...(a.propagate !== undefined ? { propagate: a.propagate } : {}),
-    })),
-  )
-
-  on('PUT', '/access/acl', ({ input, mock }) => {
-    const path = String(input['path'] ?? '')
-    if (!path) throw new HttpError(400, 'Parameter verification failed. (path: property is missing)')
-    const roles = String(input['roles'] ?? '')
-      .split(',')
-      .map((r) => r.trim())
-      .filter(Boolean)
-    if (roles.length === 0) {
-      throw new HttpError(400, 'Parameter verification failed. (roles: property is missing)')
-    }
-    const users = String(input['users'] ?? '')
-      .split(',')
-      .map((u) => u.trim())
-      .filter(Boolean)
-    const groups = String(input['groups'] ?? '')
-      .split(',')
-      .map((g) => g.trim())
-      .filter(Boolean)
-    const tokens = String(input['tokens'] ?? '')
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean)
-    if (users.length + groups.length + tokens.length === 0) {
-      throw new HttpError(400, 'no users/groups/tokens specified')
-    }
-    const del = input['delete'] === 1 || input['delete'] === true || input['delete'] === '1'
-    const propagate =
-      input['propagate'] === 0 || input['propagate'] === false || input['propagate'] === '0' ? 0 : 1
-
-    const entries: { ugid: string; type: 'user' | 'group' | 'token' }[] = [
-      ...users.map((ugid) => ({ ugid, type: 'user' as const })),
-      ...groups.map((ugid) => ({ ugid, type: 'group' as const })),
-      ...tokens.map((ugid) => ({ ugid, type: 'token' as const })),
-    ]
-
-    for (const entry of entries) {
-      for (const roleid of roles) {
-        if (del) {
-          mock.acls = mock.acls.filter(
-            (a) =>
-              !(a.path === path && a.ugid === entry.ugid && a.type === entry.type && a.roleid === roleid),
-          )
-        } else {
-          const exists = mock.acls.some(
-            (a) =>
-              a.path === path && a.ugid === entry.ugid && a.type === entry.type && a.roleid === roleid,
-          )
-          if (!exists) {
-            mock.acls.push({ path, ugid: entry.ugid, type: entry.type, roleid, propagate })
-          }
-        }
-      }
-    }
-    return null
   })
 
   on('GET', '/nodes/{node}/tasks/{upid}/status', ({ input, mock }) => {
@@ -832,6 +752,9 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
         const vmid = num(input['vmid'])
         const guest = requireGuest(mock, node, vmid, type)
 
+        // GĐ 8: quyền hạn chế — vanhanh@pve không có VM.PowerMgmt.
+        requirePriv(mock, auth.username, `/vms/${vmid}`, 'VM.PowerMgmt')
+
         if (guest.lock) {
           throw new HttpError(500, `VM is locked (${guest.lock})`)
         }
@@ -899,6 +822,11 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
   applyNodeInfraHandlers(handlers)
   applyNodeSystemHandlers(handlers)
   applyCephClusterHandlers(handlers)
+
+  // ── Access / Firewall / SDN / HA / … (giai đoạn 8) ─────────────────────────
+  applyAccessHandlers(handlers)
+  applyFirewallHandlers(handlers)
+  applySdnHaHandlers(handlers)
 
   return handlers
 }

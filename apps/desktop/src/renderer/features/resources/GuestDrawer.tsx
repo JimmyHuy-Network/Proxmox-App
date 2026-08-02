@@ -15,7 +15,9 @@ import { useConnections } from '../../stores/connections'
 import { useSelection } from '../../stores/selection'
 import { useClusterResources } from '../../hooks/useClusterResources'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
+import { usePermissions } from '../../hooks/usePermissions'
 import { GuestConsoleTab } from '../console/GuestConsoleTab'
+import { RulesPanel } from '../firewall/FirewallPage'
 import { CloudInitTab } from './CloudInitTab'
 import { GuestOps } from './GuestOps'
 import { GuestTasksTab } from './GuestTasksTab'
@@ -101,6 +103,12 @@ export function GuestDrawer(): React.JSX.Element {
     .map((r) => r.node as string)
     .sort()
 
+  const { can } = usePermissions(activeId)
+  const canPower = can('VM.PowerMgmt', vmid !== undefined ? `/vms/${vmid}` : '/')
+  const canAllocate = can('VM.Allocate', vmid !== undefined ? `/vms/${vmid}` : '/')
+  const canModifyFw = can('Sys.Modify', '/')
+  const denyPower = t('access.denied')
+
   const diskKeys = Object.keys(configQuery.data ?? {}).filter((k) =>
     type === 'lxc' ? k === 'rootfs' || /^mp\d+$/.test(k) : /^(scsi|virtio|ide|sata)\d+$/.test(k),
   )
@@ -173,6 +181,8 @@ export function GuestDrawer(): React.JSX.Element {
                       icon={<PlayCircleOutlined />}
                       type="primary"
                       disabled={running || Boolean(isTemplate)}
+                      allowed={canPower}
+                      denyReason={denyPower}
                     />
                     <TaskButton
                       connectionId={activeId}
@@ -182,6 +192,8 @@ export function GuestDrawer(): React.JSX.Element {
                       label={t('guest.shutdown')}
                       icon={<PoweroffOutlined />}
                       disabled={!running}
+                      allowed={canPower}
+                      denyReason={denyPower}
                     />
                     <TaskButton
                       connectionId={activeId}
@@ -193,6 +205,8 @@ export function GuestDrawer(): React.JSX.Element {
                       danger
                       confirmMessage={t('guest.stopConfirm')}
                       disabled={!running}
+                      allowed={canPower}
+                      denyReason={denyPower}
                     />
                     <TaskButton
                       connectionId={activeId}
@@ -202,6 +216,8 @@ export function GuestDrawer(): React.JSX.Element {
                       label={t('guest.reboot')}
                       icon={<ReloadOutlined />}
                       disabled={!running}
+                      allowed={canPower}
+                      denyReason={denyPower}
                     />
                     <TaskButton
                       connectionId={activeId}
@@ -212,6 +228,8 @@ export function GuestDrawer(): React.JSX.Element {
                       danger
                       confirmMessage={t('guest.destroyConfirm')}
                       disabled={running}
+                      allowed={canAllocate}
+                      denyReason={denyPower}
                     />
                   </Space>
 
@@ -291,6 +309,18 @@ export function GuestDrawer(): React.JSX.Element {
               key: 'permissions',
               label: t('guest.tabPermissions'),
               children: <PermissionsTab connectionId={activeId} vmid={vmid} />,
+            },
+            {
+              key: 'firewall',
+              label: t('guest.tabFirewall'),
+              children: (
+                <RulesPanel
+                  connectionId={activeId}
+                  path={`/nodes/{node}/${type}/{vmid}/firewall/rules`}
+                  params={{ node, vmid }}
+                  canModify={canModifyFw}
+                />
+              ),
             },
             {
               key: 'tasks',

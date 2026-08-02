@@ -74,7 +74,7 @@ function valueForParam(name: string, spec: PveParamSpec, path: string): string {
     case 'storage':
       return 'local'
     case 'userid':
-      return 'root@pam'
+      return path.includes('/access/tfa') ? 'tfa@pve' : 'root@pam'
     case 'realm':
       return 'pam'
     case 'upid':
@@ -88,9 +88,49 @@ function valueForParam(name: string, spec: PveParamSpec, path: string): string {
       return 'vmbr0'
     case 'disk':
       return '/dev/sda'
+    case 'groupid':
+      return 'operators'
+    case 'roleid':
+      return 'PVEAuditor'
+    case 'tokenid':
+      return 'automation'
+    case 'group':
+      // HA group vs firewall security group — cùng giá trị seed khác path.
+      if (path.includes('/cluster/ha/')) return 'ha-preferred'
+      return 'web-server'
+    case 'sid':
+      return 'vm:100'
+    case 'zone':
+      return 'localzone'
+    case 'vnet':
+      return 'vnet0'
+    case 'controller':
+      return 'evpn1'
+    case 'name':
+      if (path.includes('/firewall/aliases')) return 'lan'
+      if (path.includes('/firewall/ipset')) return 'blacklist'
+      if (path.includes('/notifications/endpoints/gotify')) return 'gotify-lab'
+      if (path.includes('/notifications/endpoints/sendmail')) return 'mail-admins'
+      if (path.includes('/notifications/endpoints/smtp')) return 'smtp-lab'
+      if (path.includes('/notifications/endpoints/webhook')) return 'webhook-lab'
+      if (path.includes('/notifications/')) return 'mail-admins'
+      if (path.includes('/access/tfa')) return 'totp-1'
+      return 'test'
+    case 'cidr':
+      return '203.0.113.0/24'
+    case 'pos':
+      return '0'
+    case 'subnet':
+      return 'localzone/192.168.50.0/24'
+    case 'ipam':
+      return 'pve'
     case 'id':
       // Backup job seed trong cluster-3node.
       if (path.includes('/cluster/backup')) return 'backup-nightly'
+      if (path.includes('/cluster/replication')) return '100-0'
+      if (path.includes('/nodes/') && path.includes('/replication')) return '100-0'
+      if (path.includes('/cluster/metrics')) return 'influx'
+      if (path.includes('/access/tfa')) return 'totp-1'
       break
     default:
       break

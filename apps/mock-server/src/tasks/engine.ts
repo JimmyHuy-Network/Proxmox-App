@@ -348,6 +348,15 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 400, log: 'join cluster' },
     { atMs: 1800, done: 'OK' },
   ],
+  srapply: [
+    { atMs: 300, log: 'apply SDN config' },
+    { atMs: 1200, done: 'OK' },
+  ],
+  replication: [
+    { atMs: 200, log: 'trying to get exclusive lock...' },
+    { atMs: 600, log: 'replicating snapshot...' },
+    { atMs: 1400, done: 'OK' },
+  ],
 }
 
 export function templateFor(type: string): TaskStep[] {
