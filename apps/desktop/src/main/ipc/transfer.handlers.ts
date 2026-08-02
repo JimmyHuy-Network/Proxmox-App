@@ -216,7 +216,16 @@ async function startDownload(
     return { ok: false, message: 'Thiếu connectionId/node/storage/volume' }
   }
 
-  const defaultName = basename(req.volume.replace(/\\/g, '/'))
+  let defaultName = basename(req.volume.replace(/\\/g, '/'))
+  if (req.filepath) {
+    try {
+      const decoded = Buffer.from(req.filepath, 'base64').toString('utf8')
+      const leaf = decoded.split('/').filter(Boolean).pop()
+      if (leaf) defaultName = leaf
+    } catch {
+      // giữ tên từ volume
+    }
+  }
   let savePath = req.savePath
   if (!savePath) {
     const picked = await dialog.showSaveDialog(parentWindow ?? undefined!, {
@@ -246,12 +255,13 @@ async function startDownload(
       const endpoint = conn.endpoint()
       const headers = await conn.authHeaders('GET')
 
-      // Mock/desktop: tải nội dung giả lập qua GET content/{volume}?download=1
-      // (Proxmox web UI dùng cơ chế tương tự cho một số loại content).
-      const volumeParam = encodeURIComponent(req.volume)
-      const path =
-        `/api2/json/nodes/${encodeURIComponent(req.node)}/storage/${encodeURIComponent(req.storage)}` +
-        `/content/${volumeParam}?download=1`
+      const base =
+        `/api2/json/nodes/${encodeURIComponent(req.node)}/storage/${encodeURIComponent(req.storage)}`
+      // PBS file-restore khi có filepath; còn lại tải volume content (?download=1).
+      const path = req.filepath
+        ? `${base}/file-restore/download?volume=${encodeURIComponent(req.volume)}` +
+          `&filepath=${encodeURIComponent(req.filepath)}`
+        : `${base}/content/${encodeURIComponent(req.volume)}?download=1`
 
       await new Promise<void>((resolve, reject) => {
         const agent = new Agent({

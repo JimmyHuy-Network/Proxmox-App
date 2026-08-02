@@ -217,6 +217,7 @@ export function StorageDrawer(): React.JSX.Element {
                     node={node!}
                     storage={storage!}
                     contentTypes={contentTypes}
+                    storageType={statusQuery.data?.type ?? storageRes?.plugintype}
                     onRestore={(volid) => setRestoreArchive(volid)}
                   />
                 ),

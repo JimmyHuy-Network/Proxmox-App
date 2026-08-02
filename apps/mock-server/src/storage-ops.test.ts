@@ -242,4 +242,67 @@ describe('storage ops', () => {
     const list = await client.request('GET', '/storage', {})
     expect(list.some((s) => s.storage === 'dir-extra')).toBe(false)
   })
+
+  it('tạo storage cifs / iscsi / lvmthin với field đặc thù', async () => {
+    await client.request('POST', '/storage', {
+      storage: 'cifs-lab',
+      type: 'cifs',
+      server: '192.168.1.80',
+      share: 'backup',
+      username: 'u',
+      content: 'backup,iso',
+    })
+    const cifs = await client.request('GET', '/storage/{storage}', { storage: 'cifs-lab' })
+    expect(cifs.type).toBe('cifs')
+
+    await client.request('POST', '/storage', {
+      storage: 'iscsi-lab',
+      type: 'iscsi',
+      portal: '192.168.1.70:3260',
+      target: 'iqn.2024-01.local.lab:storage',
+      content: 'images',
+    })
+    const iscsi = await client.request('GET', '/storage/{storage}', { storage: 'iscsi-lab' })
+    expect(iscsi.type).toBe('iscsi')
+
+    await client.request('POST', '/storage', {
+      storage: 'thin-extra',
+      type: 'lvmthin',
+      vgname: 'pve',
+      thinpool: 'data',
+      content: 'images,rootdir',
+    })
+    const thin = await client.request('GET', '/storage/{storage}', { storage: 'thin-extra' })
+    expect(thin.type).toBe('lvmthin')
+
+    for (const id of ['cifs-lab', 'iscsi-lab', 'thin-extra']) {
+      await client.request('DELETE', '/storage/{storage}', { storage: id })
+    }
+  })
+
+  it('PBS file-restore list + download', async () => {
+    const volume = 'pbs-lab:backup/vm/100/2026-07-28T03:00:02Z'
+    const list = await client.request('GET', '/nodes/{node}/storage/{storage}/file-restore/list', {
+      node: 'pve1',
+      storage: 'pbs-lab',
+      volume,
+      filepath: '/',
+    })
+    expect(list.length).toBeGreaterThan(0)
+    const file = list.find((e) => e.text === 'syslog' || e.leaf)
+    expect(file?.filepath).toBeTruthy()
+
+    const transport = createFetchTransport({ baseUrl: server.url })
+    const ticket = await login(transport, { username: 'root@pam', password: 'x' })
+    expect(ticket.status).toBe('ok')
+    if (ticket.status !== 'ok') throw new Error('login')
+    const dl = await fetch(
+      `${server.url}/api2/json/nodes/pve1/storage/pbs-lab/file-restore/download` +
+        `?volume=${encodeURIComponent(volume)}&filepath=${encodeURIComponent(String(file!.filepath))}`,
+      { headers: { Cookie: `PVEAuthCookie=${ticket.session.ticket}` } },
+    )
+    expect(dl.status).toBe(200)
+    const buf = Buffer.from(await dl.arrayBuffer())
+    expect(buf.length).toBeGreaterThan(0)
+  })
 })

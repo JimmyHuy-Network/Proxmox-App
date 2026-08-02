@@ -143,6 +143,33 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
   on('GET', '/cluster/tasks', ({ mock }) => mock.tasks.list().map(taskSummary))
 
+  on('GET', '/cluster/log', ({ mock, input }) => {
+    const max = Math.min(Math.max(num(input['max'] ?? 50) || 50, 1), 500)
+    const now = Math.floor(Date.now() / 1000)
+    const nodes = mock.world.current.nodes
+    const entries = []
+    for (let i = 0; i < max; i++) {
+      const node = nodes[i % Math.max(nodes.length, 1)]?.node ?? 'pve1'
+      const pri = i % 11 === 0 ? 3 : i % 5 === 0 ? 4 : 6
+      entries.push({
+        uid: max - i,
+        time: now - i * 37,
+        pri,
+        tag: pri <= 3 ? 'pvedaemon' : i % 3 === 0 ? 'pveproxy' : 'corosync',
+        pid: 1200 + (i % 80),
+        node,
+        user: i % 7 === 0 ? 'root@pam' : '',
+        msg:
+          pri <= 3
+            ? `authentication failure; rhost=10.0.0.${(i % 50) + 1} user=root@pam msg=auth failed`
+            : i % 4 === 0
+              ? `starting CT ${100 + (i % 40)}`
+              : `cluster log sample #${max - i} on ${node}`,
+      })
+    }
+    return entries
+  })
+
   on('GET', '/pools', ({ mock }) => mock.world.current.pools)
 
   // ── Node ───────────────────────────────────────────────────────────────────

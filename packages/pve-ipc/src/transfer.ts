@@ -30,6 +30,11 @@ export interface TransferDownloadRequest {
   storage: string
   /** Volid đầy đủ, ví dụ `local:iso/debian.iso`. */
   volume: string
+  /**
+   * PBS file-restore: đường dẫn base64 trong snapshot.
+   * Khi có, main gọi `/file-restore/download` thay vì content volume.
+   */
+  filepath?: string
   /** Đường dẫn lưu; bỏ trống → hộp thoại Save. */
   savePath?: string
 }

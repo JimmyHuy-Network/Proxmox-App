@@ -190,6 +190,13 @@ describe('mock server phục vụ toàn bộ schema', () => {
           continue
         }
 
+        // Endpoint đánh dấu download_allowed có thể trả octet-stream thay vì { data }.
+        const contentType = response.headers.get('content-type') ?? ''
+        if (meta.downloadAllowed && contentType.includes('application/octet-stream')) {
+          await response.arrayBuffer()
+          continue
+        }
+
         const body = (await response.json()) as { data?: unknown }
 
         if (!('data' in body)) {

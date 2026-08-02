@@ -1,12 +1,19 @@
 import { useEffect } from 'react'
 import { Badge, Divider, Dropdown, Layout, Menu, Space, Typography, theme } from 'antd'
-import { ApiOutlined, CodeOutlined, DashboardOutlined, DownOutlined } from '@ant-design/icons'
+import {
+  ApiOutlined,
+  CodeOutlined,
+  DashboardOutlined,
+  DownOutlined,
+  FileSearchOutlined,
+} from '@ant-design/icons'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { ConnectionPhase } from '@pve/ipc'
 import { useConnections } from '../stores/connections'
 import { subscribePveEvents } from '../lib/events'
 import { ResourceTree } from '../features/resources/ResourceTree'
+import { GlobalSearch } from '../features/resources/GlobalSearch'
 import { TaskDock } from '../features/tasks/TaskDock'
 import { GuestDrawer } from '../features/resources/GuestDrawer'
 import { StorageDrawer } from '../features/storage/StorageDrawer'
@@ -108,7 +115,10 @@ export function AppLayout(): React.JSX.Element {
             {t('app.tagline')}
           </Typography.Text>
         </Space>
-        <div style={{ marginInlineStart: 'auto' }}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
+          {connected ? <GlobalSearch connectionId={activeId} /> : null}
+        </div>
+        <div>
           <ConnectionSwitcher />
         </div>
       </Header>
@@ -143,6 +153,11 @@ export function AppLayout(): React.JSX.Element {
                 key: '/console',
                 icon: <CodeOutlined />,
                 label: <Link to="/console">{t('nav.console')}</Link>,
+              },
+              {
+                key: '/cluster-log',
+                icon: <FileSearchOutlined />,
+                label: <Link to="/cluster-log">{t('nav.clusterLog')}</Link>,
               },
             ]}
           />

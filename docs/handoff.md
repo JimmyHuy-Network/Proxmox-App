@@ -112,8 +112,8 @@ Main gửi header `Authorization` trên WebSocket; ticket thì gửi `Cookie`.
 **Fake shell vẫn giữ bản copy trong desktop** cho `DEMO_CONNECTION_ID`, ngoài bản mock-server.
 Không worth tạo package riêng chỉ để share ~300 dòng.
 
-**Chưa làm clipboard sync / quality slider** trên toolbar VNC — có Ctrl-Alt-Del, fullscreen,
-reconnect, detach. Quality/clipboard có thể bổ sung mỏng sau nếu cần.
+**VNC clipboard + quality** đã bổ sung: slider chất lượng (0–9), nút dán clipboard host→guest
+(`clipboardPasteFrom`), và lắng sự kiện `clipboard` guest→host khi server hỗ trợ.
 
 ---
 
@@ -136,12 +136,17 @@ reconnect, detach. Quality/clipboard có thể bổ sung mỏng sau nếu cần.
    restore wizard, thêm storage + scan NFS/PBS.
 4. Tiêu chí plan §8: test upload **10 MB** + huỷ giữa chừng (`multipart-upload.test.ts`).
 
-### Chưa làm / để mỏng
+### Gap GĐ 0–6 đã hoàn tất (nhánh gaps)
 
-- Clipboard sync / quality slider VNC (GĐ 5) — có thể bổ sung sau.
-- Download local volume còn dựa `?download=1` mock (1 MiB giả) — đủ cho UI, chưa parity PBS
-  file-restore download đầy đủ.
-- Form thêm storage chưa cover hết mọi loại (iSCSI/Ceph/ZFS chỉ có scan stub + field cơ bản).
+- Fixture `huge` (8 node / ~400 guest) + `scripts/generate-huge.mjs`.
+- Cluster log UI (`GET /cluster/log`) + tìm kiếm toàn cục trên header.
+- VNC clipboard paste + quality slider.
+- Form thêm storage đủ loại (cifs/iscsi/lvm/lvmthin/zfspool/rbd/cephfs/pbs…).
+- PBS file-restore list/download UI; nút tải volume local qua `pve:transfer`.
+- `build:win`: đã verify trên Linux — `electron-builder --win` đóng gói được
+  `release/win-unpacked/Proxmox VE Manager.exe` (~216 MB). Bước NSIS cần `wine`
+  (chưa có trên VM này) nên installer `.exe` đầy đủ chỉ build được trên Windows
+  hoặc máy có wine. Ký số vẫn để sau.
 
 ### Giai đoạn 7 — hạ tầng node & cluster (plan §6)
 
@@ -169,4 +174,3 @@ Câu hỏi còn lại:
 
 1. **Ký số Windows** — EV/OV trước phát hành.
 2. Icon riêng (đang dùng mặc định Electron).
-3. Clipboard/quality VNC — có làm mỏng trong GĐ 5 hay để sau.

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Flex, Space, Tag, Typography } from 'antd'
+import { Alert, Button, Flex, Slider, Space, Tag, Tooltip, Typography } from 'antd'
 import {
   ExpandOutlined,
   FullscreenOutlined,
   ReloadOutlined,
+  SnippetsOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +38,7 @@ export function VncPane({
   const [message, setMessage] = useState<string | null>(null)
   const [sessionTitle, setSessionTitle] = useState(title ?? '')
   const [generation, setGeneration] = useState(0)
+  const [quality, setQuality] = useState(6)
 
   useEffect(() => {
     const host = hostRef.current
@@ -87,6 +89,8 @@ export function VncPane({
       rfb.scaleViewport = true
       rfb.resizeSession = true
       rfb.background = '#0b0d10'
+      rfb.qualityLevel = quality
+      rfb.compressionLevel = Math.max(0, 9 - quality)
 
       rfb.addEventListener('connect', () => {
         if (cancelled) return
@@ -102,6 +106,15 @@ export function VncPane({
         setStatus('failed')
         setMessage('Xác thực VNC thất bại')
       })
+      // Guest → host clipboard (khi server hỗ trợ Extended Clipboard).
+      rfb.addEventListener('clipboard', ((ev: CustomEvent<{ text: string }>) => {
+        const text = ev.detail?.text
+        if (typeof text === 'string' && text.length > 0 && navigator.clipboard?.writeText) {
+          void navigator.clipboard.writeText(text).catch(() => {
+            // Môi trường headless / quyền clipboard — bỏ qua im lặng.
+          })
+        }
+      }) as EventListener)
     })()
 
     return () => {
@@ -116,7 +129,16 @@ export function VncPane({
       socketRef.current = null
       host.replaceChildren()
     }
+    // quality chỉ áp lúc tạo session / khi user kéo slider (effect riêng).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generation, presetRelayUrl, request])
+
+  useEffect(() => {
+    const rfb = rfbRef.current
+    if (!rfb) return
+    rfb.qualityLevel = quality
+    rfb.compressionLevel = Math.max(0, 9 - quality)
+  }, [quality])
 
   const reconnect = useCallback(() => {
     socketRef.current?.close()
@@ -128,6 +150,22 @@ export function VncPane({
   const sendCad = useCallback(() => {
     rfbRef.current?.sendCtrlAltDel()
   }, [])
+
+  const pasteClipboard = useCallback(() => {
+    void (async () => {
+      try {
+        const text = await navigator.clipboard.readText()
+        if (!text) {
+          setMessage(t('console.clipboardEmpty'))
+          return
+        }
+        rfbRef.current?.clipboardPasteFrom(text)
+        setMessage(null)
+      } catch {
+        setMessage(t('console.clipboardDenied'))
+      }
+    })()
+  }, [t])
 
   const toggleFullscreen = useCallback(() => {
     const el = hostRef.current?.parentElement
@@ -144,7 +182,32 @@ export function VncPane({
           <Tag color="blue">VNC</Tag>
           <StatusTag status={status} />
         </Space>
-        <Space size={8}>
+        <Space size={8} wrap>
+          <Tooltip title={t('console.quality')}>
+            <Flex align="center" gap={8} style={{ minWidth: 140 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                {t('console.quality')}
+              </Typography.Text>
+              <Slider
+                min={0}
+                max={9}
+                step={1}
+                value={quality}
+                onChange={setQuality}
+                style={{ width: 80, margin: 0 }}
+                disabled={status !== 'connected'}
+                tooltip={{ formatter: (v) => String(v ?? 0) }}
+              />
+            </Flex>
+          </Tooltip>
+          <Button
+            size="small"
+            icon={<SnippetsOutlined />}
+            onClick={pasteClipboard}
+            disabled={status !== 'connected'}
+          >
+            {t('console.clipboardPaste')}
+          </Button>
           <Button size="small" icon={<WarningOutlined />} onClick={sendCad} disabled={status !== 'connected'}>
             {t('console.ctrlAltDel')}
           </Button>

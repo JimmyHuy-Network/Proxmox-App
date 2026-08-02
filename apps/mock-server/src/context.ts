@@ -10,7 +10,7 @@ import { ConsoleTicketStore } from './console/tickets.ts'
 const here = dirname(fileURLToPath(import.meta.url))
 const fixturesDir = join(here, '..', 'fixtures')
 
-export const FIXTURES = ['cluster-3node'] as const
+export const FIXTURES = ['cluster-3node', 'huge'] as const
 export type FixtureName = (typeof FIXTURES)[number]
 
 interface InjectedFailure {
