@@ -13,6 +13,7 @@ import { useConnections } from '../../stores/connections'
 import { useSelection } from '../../stores/selection'
 import { useClusterResources } from '../../hooks/useClusterResources'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
+import { GuestConsoleTab } from '../console/GuestConsoleTab'
 import { CloudInitTab } from './CloudInitTab'
 import { GuestOps } from './GuestOps'
 import { GuestTasksTab } from './GuestTasksTab'
@@ -238,6 +239,13 @@ export function GuestDrawer(): React.JSX.Element {
                     </Flex>
                   )}
                 </Flex>
+              ),
+            },
+            {
+              key: 'console',
+              label: t('guest.tabConsole'),
+              children: (
+                <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />
               ),
             },
             {

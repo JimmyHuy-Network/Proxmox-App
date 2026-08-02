@@ -8,8 +8,8 @@ import type { TermFrame } from '@shared/term-protocol'
  * thước, giữ nhịp, và ANSI escape. Nếu gõ được tiếng Việt có dấu ở đây mà không vỡ
  * ký tự thì phần khó nhất của console đã đúng.
  *
- * Ở giai đoạn 1 khối này chuyển sang `apps/mock-server`, nơi nó phục vụ đúng endpoint
- * `/termproxy` + `/vncwebsocket` như thật.
+ * Bản phục vụ mock thật nằm ở `apps/mock-server/src/console/fake-shell.ts` (GĐ 5).
+ * File này chỉ còn cho `DEMO_CONNECTION_ID` (offline spike khi chưa có kết nối).
  */
 
 const ESC = '\x1b'

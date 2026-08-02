@@ -2,6 +2,7 @@ import { createHashHistory, createRootRoute, createRoute, createRouter } from '@
 import { AppLayout } from './AppLayout'
 import { Dashboard } from '../routes/Dashboard'
 import { ConsolePage } from '../routes/ConsolePage'
+import { ConsoleSessionPage } from '../routes/ConsoleSessionPage'
 import { ConnectionsPage } from '../features/connections/ConnectionsPage'
 
 const rootRoute = createRootRoute({ component: AppLayout })
@@ -24,7 +25,18 @@ const consoleRoute = createRoute({
   component: ConsolePage,
 })
 
-const routeTree = rootRoute.addChildren([dashboardRoute, connectionsRoute, consoleRoute])
+const consoleSessionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/console/session',
+  component: ConsoleSessionPage,
+})
+
+const routeTree = rootRoute.addChildren([
+  dashboardRoute,
+  connectionsRoute,
+  consoleRoute,
+  consoleSessionRoute,
+])
 
 export const router = createRouter({
   routeTree,
