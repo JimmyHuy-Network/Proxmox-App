@@ -17,6 +17,7 @@ import { GlobalSearch } from '../features/resources/GlobalSearch'
 import { TaskDock } from '../features/tasks/TaskDock'
 import { GuestDrawer } from '../features/resources/GuestDrawer'
 import { StorageDrawer } from '../features/storage/StorageDrawer'
+import { NodeDrawer } from '../features/node/NodeDrawer'
 
 const { Sider, Header, Content, Footer } = Layout
 
@@ -191,6 +192,7 @@ export function AppLayout(): React.JSX.Element {
 
       <GuestDrawer />
       <StorageDrawer />
+      <NodeDrawer />
     </Layout>
   )
 }

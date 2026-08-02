@@ -5,6 +5,7 @@ import { synthRrd } from '../rrd.ts'
 import type { MockContext } from '../context.ts'
 import type { GuestType, MockGuest, MockSnapshot } from '../state/world.ts'
 import { applyStorageHandlers } from './storage.ts'
+import { applyNodeInfraHandlers } from './node-infra.ts'
 
 /**
  * Hành vi thật cho những endpoint quan trọng nhất.
@@ -891,6 +892,9 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
   // ── Storage (giai đoạn 6) ──────────────────────────────────────────────────
   applyStorageHandlers(handlers)
+
+  // ── Hạ tầng node (giai đoạn 7) ─────────────────────────────────────────────
+  applyNodeInfraHandlers(handlers)
 
   return handlers
 }

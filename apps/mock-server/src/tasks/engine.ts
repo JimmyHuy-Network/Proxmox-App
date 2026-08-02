@@ -300,6 +300,11 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 2000, done: 'OK' },
   ],
   vzdestroy: [{ atMs: 1500, done: 'OK' }],
+  networkreload: [
+    { atMs: 200, log: 'reload network config' },
+    { atMs: 800, log: 'ifup -a' },
+    { atMs: 1200, done: 'OK' },
+  ],
 }
 
 export function templateFor(type: string): TaskStep[] {

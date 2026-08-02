@@ -6,6 +6,7 @@ import { TaskEngine } from './tasks/engine.ts'
 import { World, type MockWorld } from './state/world.ts'
 import { AuthStore } from './auth.ts'
 import { ConsoleTicketStore } from './console/tickets.ts'
+import { defaultNodeInfra, type NodeInfraState } from './state/node-infra.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixturesDir = join(here, '..', 'fixtures')
@@ -51,6 +52,8 @@ export class MockContext {
   readonly consoleTickets = new ConsoleTicketStore()
   /** ACL trong bộ nhớ — đủ cho tab quyền theo guest (GĐ 4); Access đầy đủ là GĐ 8. */
   acls: MockAcl[] = structuredClone(SEED_ACLS)
+  /** Hạ tầng node (mạng/DNS/hosts/time) — GĐ 7. */
+  private nodeInfra = new Map<string, NodeInfraState>()
 
   private latencyMs = 40
   private latencyJitter = 40
@@ -58,12 +61,14 @@ export class MockContext {
 
   constructor(fixture: FixtureName = 'cluster-3node') {
     this.world = new World(loadFixture(fixture))
+    this.seedNodeInfra()
     this.tasks.start()
   }
 
   loadFixture(name: FixtureName): void {
     this.world.load(loadFixture(name))
     this.tasks.reset()
+    this.seedNodeInfra()
   }
 
   reset(): void {
@@ -73,6 +78,24 @@ export class MockContext {
     this.consoleTickets.reset()
     this.acls = structuredClone(SEED_ACLS)
     this.failures = []
+    this.seedNodeInfra()
+  }
+
+  ensureNodeInfra(node: string): NodeInfraState {
+    let state = this.nodeInfra.get(node)
+    if (!state) {
+      const index = this.world.current.nodes.findIndex((n) => n.node === node)
+      state = defaultNodeInfra(node, Math.max(0, index))
+      this.nodeInfra.set(node, state)
+    }
+    return state
+  }
+
+  private seedNodeInfra(): void {
+    this.nodeInfra.clear()
+    this.world.current.nodes.forEach((n, index) => {
+      this.nodeInfra.set(n.node, defaultNodeInfra(n.node, index))
+    })
   }
 
   setLatency(ms: number, jitter = 0): void {
