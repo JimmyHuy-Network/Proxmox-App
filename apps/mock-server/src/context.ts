@@ -6,11 +6,12 @@ import { TaskEngine } from './tasks/engine.ts'
 import { World, type MockWorld } from './state/world.ts'
 import { AuthStore } from './auth.ts'
 import { ConsoleTicketStore } from './console/tickets.ts'
+import { defaultNodeInfra, defaultCephState, type NodeInfraState, type MockCephState, type MockClusterConfig } from './state/node-infra.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixturesDir = join(here, '..', 'fixtures')
 
-export const FIXTURES = ['cluster-3node', 'huge'] as const
+export const FIXTURES = ['cluster-3node', 'huge', 'broken-cluster'] as const
 export type FixtureName = (typeof FIXTURES)[number]
 
 interface InjectedFailure {
@@ -51,6 +52,16 @@ export class MockContext {
   readonly consoleTickets = new ConsoleTicketStore()
   /** ACL trong bộ nhớ — đủ cho tab quyền theo guest (GĐ 4); Access đầy đủ là GĐ 8. */
   acls: MockAcl[] = structuredClone(SEED_ACLS)
+  /** Hạ tầng node (mạng/DNS/hosts/time/disks/apt…) — GĐ 7. */
+  private nodeInfra = new Map<string, NodeInfraState>()
+  /** Ceph cụm — GĐ 7. */
+  ceph: MockCephState = defaultCephState(['pve1', 'pve2', 'pve3'])
+  /** Cluster create/join — GĐ 7. */
+  clusterConfig: MockClusterConfig = {
+    created: true,
+    clustername: 'pve-lab',
+    nodes: ['pve1', 'pve2', 'pve3'],
+  }
 
   private latencyMs = 40
   private latencyJitter = 40
@@ -58,12 +69,16 @@ export class MockContext {
 
   constructor(fixture: FixtureName = 'cluster-3node') {
     this.world = new World(loadFixture(fixture))
+    this.seedNodeInfra()
+    this.seedClusterExtras(fixture)
     this.tasks.start()
   }
 
   loadFixture(name: FixtureName): void {
     this.world.load(loadFixture(name))
     this.tasks.reset()
+    this.seedNodeInfra()
+    this.seedClusterExtras(name)
   }
 
   reset(): void {
@@ -73,6 +88,37 @@ export class MockContext {
     this.consoleTickets.reset()
     this.acls = structuredClone(SEED_ACLS)
     this.failures = []
+    this.seedNodeInfra()
+    this.seedClusterExtras(undefined)
+  }
+
+  ensureNodeInfra(node: string): NodeInfraState {
+    let state = this.nodeInfra.get(node)
+    if (!state) {
+      const index = this.world.current.nodes.findIndex((n) => n.node === node)
+      state = defaultNodeInfra(node, Math.max(0, index))
+      this.nodeInfra.set(node, state)
+    }
+    return state
+  }
+
+  private seedNodeInfra(): void {
+    this.nodeInfra.clear()
+    this.world.current.nodes.forEach((n, index) => {
+      this.nodeInfra.set(n.node, defaultNodeInfra(n.node, index))
+    })
+  }
+
+  private seedClusterExtras(fixture?: FixtureName): void {
+    const nodes = this.world.current.nodes.map((n) => n.node)
+    const name = fixture ?? (this.world.current.clusterName === 'broken-cluster' ? 'broken-cluster' : undefined)
+    const broken = name === 'broken-cluster' || this.world.current.clusterName === 'broken-lab'
+    this.ceph = defaultCephState(nodes, broken)
+    this.clusterConfig = {
+      created: true,
+      clustername: this.world.current.clusterName,
+      nodes: [...nodes],
+    }
   }
 
   setLatency(ms: number, jitter = 0): void {

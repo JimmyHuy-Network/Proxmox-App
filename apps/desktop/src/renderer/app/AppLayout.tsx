@@ -3,6 +3,7 @@ import { Badge, Divider, Dropdown, Layout, Menu, Space, Typography, theme } from
 import {
   ApiOutlined,
   CodeOutlined,
+  ClusterOutlined,
   DashboardOutlined,
   DownOutlined,
   FileSearchOutlined,
@@ -17,6 +18,7 @@ import { GlobalSearch } from '../features/resources/GlobalSearch'
 import { TaskDock } from '../features/tasks/TaskDock'
 import { GuestDrawer } from '../features/resources/GuestDrawer'
 import { StorageDrawer } from '../features/storage/StorageDrawer'
+import { NodeDrawer } from '../features/node/NodeDrawer'
 
 const { Sider, Header, Content, Footer } = Layout
 
@@ -159,6 +161,11 @@ export function AppLayout(): React.JSX.Element {
                 icon: <FileSearchOutlined />,
                 label: <Link to="/cluster-log">{t('nav.clusterLog')}</Link>,
               },
+              {
+                key: '/cluster',
+                icon: <ClusterOutlined />,
+                label: <Link to="/cluster">{t('nav.cluster')}</Link>,
+              },
             ]}
           />
 
@@ -191,6 +198,7 @@ export function AppLayout(): React.JSX.Element {
 
       <GuestDrawer />
       <StorageDrawer />
+      <NodeDrawer />
     </Layout>
   )
 }

@@ -14,6 +14,9 @@ function labelOf(r: ClusterResource): string {
   if (r.type === 'storage') {
     return `${r.storage ?? r.id} (storage) · ${r.node ?? ''}`
   }
+  if (r.type === 'node') {
+    return `${r.node ?? r.id} (node)`
+  }
   return r.id
 }
 
@@ -42,7 +45,7 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
     const q = value.trim()
     if (!q) return []
     return (resources as ClusterResource[])
-      .filter((r) => isGuest(r) || r.type === 'storage')
+      .filter((r) => isGuest(r) || r.type === 'storage' || r.type === 'node')
       .filter((r) => matches(r, q))
       .slice(0, 24)
       .map((r) => ({

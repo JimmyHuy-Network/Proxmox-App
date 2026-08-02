@@ -45,7 +45,8 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
   const select = useSelection((s) => s.select)
   const selectedGuest = useSelection((s) => s.selectedGuest)
   const selectedStorage = useSelection((s) => s.selectedStorage)
-  const selectedKey = selectedGuest?.id ?? selectedStorage?.id
+  const selectedNode = useSelection((s) => s.selectedNode)
+  const selectedKey = selectedGuest?.id ?? selectedStorage?.id ?? selectedNode?.id
 
   const treeData = useMemo<DataNode[]>(() => {
     const rows = resources as ClusterResource[]
@@ -97,9 +98,20 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
       const nodeName = n.node ?? ''
       nodeEntries.push({
         key: n.id,
-        selectable: false,
+        selectable: true,
         title: (
-          <Flex align="center" gap={6} justify="space-between" style={{ width: '100%', paddingInlineEnd: 4 }}>
+          <Flex
+            align="center"
+            gap={6}
+            justify="space-between"
+            style={{ width: '100%', paddingInlineEnd: 4, cursor: 'pointer' }}
+            onClick={(e) => {
+              // Click tiêu đề node (không phải nút Shell) → mở NodeDrawer.
+              // Ant Design Tree đôi khi nuốt select khi click vùng title phức tạp.
+              e.stopPropagation()
+              select(n)
+            }}
+          >
             <Flex align="center" gap={6}>
               <Badge status={statusOf(n)} />
               <Typography.Text strong>{nodeName}</Typography.Text>
@@ -153,10 +165,13 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
           treeData={treeData}
           defaultExpandedKeys={allNodeKeys}
           selectedKeys={selectedKey ? [selectedKey] : []}
+          expandAction="doubleClick"
           onSelect={(_keys, info) => {
-            if (!info.node.selectable) return
             const resource = (resources as ClusterResource[]).find((r) => r.id === info.node.key)
-            select(resource ?? null)
+            if (!resource) return
+            if (resource.type === 'node' || isGuest(resource) || resource.type === 'storage') {
+              select(resource)
+            }
           }}
           style={{ flex: 1, overflow: 'auto', paddingInline: 4 }}
         />

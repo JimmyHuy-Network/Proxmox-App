@@ -1,0 +1,396 @@
+{
+  "clusterName": "broken-lab",
+  "quorate": false,
+  "version": {
+    "version": "9.2.1",
+    "release": "9.2",
+    "repoid": "abcdef1234567890"
+  },
+  "nodes": [
+    {
+      "node": "pve1",
+      "status": "online",
+      "cpu": 0.14,
+      "maxcpu": 16,
+      "mem": 12884901888,
+      "maxmem": 68719476736,
+      "disk": 21474836480,
+      "maxdisk": 107374182400,
+      "uptime": 864000,
+      "level": ""
+    },
+    {
+      "node": "pve2",
+      "status": "online",
+      "cpu": 0.08,
+      "maxcpu": 16,
+      "mem": 8589934592,
+      "maxmem": 68719476736,
+      "disk": 17179869184,
+      "maxdisk": 107374182400,
+      "uptime": 777600,
+      "level": ""
+    },
+    {
+      "node": "pve3",
+      "status": "offline",
+      "cpu": 0,
+      "maxcpu": 32,
+      "mem": 0,
+      "maxmem": 137438953472,
+      "disk": 32212254720,
+      "maxdisk": 214748364800,
+      "uptime": 0,
+      "level": ""
+    }
+  ],
+  "guests": [
+    {
+      "vmid": 100,
+      "name": "debian-13",
+      "type": "qemu",
+      "node": "pve1",
+      "status": "running",
+      "cpu": 0.03,
+      "cpus": 2,
+      "mem": 1073741824,
+      "maxmem": 2147483648,
+      "disk": 0,
+      "maxdisk": 34359738368,
+      "uptime": 432000,
+      "template": false,
+      "tags": "production;linux",
+      "config": {
+        "name": "debian-13",
+        "cores": 2,
+        "sockets": 1,
+        "memory": 2048,
+        "ostype": "l26",
+        "scsihw": "virtio-scsi-single",
+        "scsi0": "local-lvm:vm-100-disk-0,size=32G,iothread=1",
+        "net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,firewall=1",
+        "boot": "order=scsi0;net0",
+        "agent": "enabled=1",
+        "smbios1": "uuid=11111111-2222-3333-4444-555555555555"
+      },
+      "snapshots": [
+        {
+          "name": "truoc-nang-cap",
+          "description": "Ảnh chụp trước khi nâng cấp lên Debian 13",
+          "snaptime": 1750000000,
+          "vmstate": false
+        },
+        {
+          "name": "sau-nang-cap",
+          "description": "Sau nâng cấp — lồng trên truoc-nang-cap",
+          "snaptime": 1750003600,
+          "vmstate": false,
+          "parent": "truoc-nang-cap"
+        }
+      ]
+    },
+    {
+      "vmid": 101,
+      "name": "windows-server",
+      "type": "qemu",
+      "node": "pve2",
+      "status": "stopped",
+      "cpu": 0,
+      "cpus": 4,
+      "mem": 0,
+      "maxmem": 8589934592,
+      "disk": 0,
+      "maxdisk": 137438953472,
+      "uptime": 0,
+      "template": false,
+      "config": {
+        "name": "windows-server",
+        "cores": 4,
+        "sockets": 1,
+        "memory": 8192,
+        "ostype": "win11",
+        "scsihw": "virtio-scsi-single",
+        "scsi0": "local-lvm:vm-101-disk-0,size=128G",
+        "net0": "e1000=AA:BB:CC:DD:EE:02,bridge=vmbr0",
+        "boot": "order=scsi0",
+        "bios": "ovmf",
+        "efidisk0": "local-lvm:vm-101-disk-1,efitype=4m,pre-enrolled-keys=1,size=4M"
+      },
+      "snapshots": []
+    },
+    {
+      "vmid": 102,
+      "name": "ubuntu-noble",
+      "type": "qemu",
+      "node": "pve3",
+      "status": "stopped",
+      "cpu": 0,
+      "cpus": 4,
+      "mem": 0,
+      "maxmem": 4294967296,
+      "disk": 0,
+      "maxdisk": 68719476736,
+      "uptime": 0,
+      "template": false,
+      "config": {
+        "name": "ubuntu-noble",
+        "cores": 4,
+        "sockets": 1,
+        "memory": 4096,
+        "ostype": "l26",
+        "scsihw": "virtio-scsi-single",
+        "scsi0": "ceph-rbd:vm-102-disk-0,size=64G,iothread=1",
+        "net0": "virtio=AA:BB:CC:DD:EE:03,bridge=vmbr0,tag=20",
+        "boot": "order=scsi0",
+        "agent": "enabled=1"
+      },
+      "snapshots": []
+    },
+    {
+      "vmid": 110,
+      "name": "debian-template",
+      "type": "qemu",
+      "node": "pve1",
+      "status": "stopped",
+      "cpu": 0,
+      "cpus": 2,
+      "mem": 0,
+      "maxmem": 2147483648,
+      "disk": 0,
+      "maxdisk": 17179869184,
+      "uptime": 0,
+      "template": true,
+      "config": {
+        "name": "debian-template",
+        "cores": 2,
+        "memory": 2048,
+        "ostype": "l26",
+        "scsi0": "local-lvm:base-110-disk-0,size=16G",
+        "net0": "virtio=AA:BB:CC:DD:EE:10,bridge=vmbr0",
+        "template": 1
+      },
+      "snapshots": []
+    },
+    {
+      "vmid": 200,
+      "name": "nginx-proxy",
+      "type": "lxc",
+      "node": "pve1",
+      "status": "running",
+      "cpu": 0.01,
+      "cpus": 1,
+      "mem": 268435456,
+      "maxmem": 536870912,
+      "disk": 1073741824,
+      "maxdisk": 8589934592,
+      "uptime": 604800,
+      "template": false,
+      "tags": "production",
+      "config": {
+        "hostname": "nginx-proxy",
+        "cores": 1,
+        "memory": 512,
+        "swap": 512,
+        "ostype": "debian",
+        "arch": "amd64",
+        "rootfs": "local-lvm:vm-200-disk-0,size=8G",
+        "net0": "name=eth0,bridge=vmbr0,ip=dhcp,hwaddr=AA:BB:CC:DD:FF:01",
+        "unprivileged": 1
+      },
+      "snapshots": []
+    },
+    {
+      "vmid": 201,
+      "name": "postgres-db",
+      "type": "lxc",
+      "node": "pve2",
+      "status": "stopped",
+      "cpu": 0,
+      "cpus": 2,
+      "mem": 0,
+      "maxmem": 2147483648,
+      "disk": 4294967296,
+      "maxdisk": 34359738368,
+      "uptime": 0,
+      "template": false,
+      "config": {
+        "hostname": "postgres-db",
+        "cores": 2,
+        "memory": 2048,
+        "swap": 1024,
+        "ostype": "debian",
+        "arch": "amd64",
+        "rootfs": "local-lvm:vm-201-disk-0,size=32G",
+        "mp0": "local:201/vm-201-disk-1.raw,mp=/var/lib/postgresql,size=64G,backup=1",
+        "net0": "name=eth0,bridge=vmbr0,ip=192.168.1.201/24,gw=192.168.1.1,hwaddr=AA:BB:CC:DD:FF:02",
+        "unprivileged": 1
+      },
+      "snapshots": []
+    }
+  ],
+  "storages": [
+    {
+      "storage": "local",
+      "type": "dir",
+      "content": "iso,vztmpl,backup,snippets",
+      "shared": false,
+      "enabled": true,
+      "total": 107374182400,
+      "used": 21474836480,
+      "avail": 85899345920,
+      "contents": [
+        {
+          "volid": "local:iso/debian-13.0.0-amd64-netinst.iso",
+          "format": "iso",
+          "size": 681574400,
+          "content": "iso",
+          "ctime": 1750000000
+        },
+        {
+          "volid": "local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst",
+          "format": "tzst",
+          "size": 128974848,
+          "content": "vztmpl",
+          "ctime": 1750000000
+        },
+        {
+          "volid": "local:backup/vzdump-qemu-100-2026_07_28-03_00_02.vma.zst",
+          "format": "vma.zst",
+          "size": 4294967296,
+          "content": "backup",
+          "vmid": 100,
+          "ctime": 1753670402,
+          "notes": "Sao lưu định kỳ hằng đêm"
+        }
+      ]
+    },
+    {
+      "storage": "local-lvm",
+      "type": "lvmthin",
+      "content": "images,rootdir",
+      "shared": false,
+      "enabled": true,
+      "total": 429496729600,
+      "used": 193273528320,
+      "avail": 236223201280,
+      "contents": [
+        {
+          "volid": "local-lvm:vm-100-disk-0",
+          "format": "raw",
+          "size": 34359738368,
+          "content": "images",
+          "vmid": 100,
+          "ctime": 1740000000
+        },
+        {
+          "volid": "local-lvm:vm-101-disk-0",
+          "format": "raw",
+          "size": 137438953472,
+          "content": "images",
+          "vmid": 101,
+          "ctime": 1740000000
+        }
+      ]
+    },
+    {
+      "storage": "ceph-rbd",
+      "type": "rbd",
+      "content": "images,rootdir",
+      "shared": true,
+      "enabled": true,
+      "total": 2199023255552,
+      "used": 549755813888,
+      "avail": 1649267441664,
+      "contents": [
+        {
+          "volid": "ceph-rbd:vm-102-disk-0",
+          "format": "raw",
+          "size": 68719476736,
+          "content": "images",
+          "vmid": 102,
+          "ctime": 1745000000
+        }
+      ]
+    },
+    {
+      "storage": "nfs-backup",
+      "type": "nfs",
+      "content": "backup,iso,vztmpl",
+      "shared": true,
+      "enabled": true,
+      "total": 1099511627776,
+      "used": 53687091200,
+      "avail": 1045824536576,
+      "config": {
+        "server": "192.168.1.50",
+        "export": "/export/pve",
+        "path": "/mnt/pve/nfs-backup"
+      },
+      "contents": []
+    },
+    {
+      "storage": "pbs-lab",
+      "type": "pbs",
+      "content": "backup",
+      "shared": true,
+      "enabled": true,
+      "total": 2199023255552,
+      "used": 107374182400,
+      "avail": 2091649073152,
+      "config": {
+        "server": "192.168.1.60",
+        "datastore": "store1",
+        "username": "root@pam!"
+      },
+      "contents": [
+        {
+          "volid": "pbs-lab:backup/vm/100/2026-07-28T03:00:02Z",
+          "format": "pbs-vm",
+          "size": 3221225472,
+          "content": "backup",
+          "vmid": 100,
+          "ctime": 1753670402,
+          "notes": "PBS nightly",
+          "encrypted": true,
+          "verification": "ok"
+        }
+      ]
+    }
+  ],
+  "backupJobs": [
+    {
+      "id": "backup-nightly",
+      "enabled": true,
+      "schedule": "02:00",
+      "storage": "local",
+      "mode": "snapshot",
+      "compress": "zstd",
+      "comment": "Sao lưu đêm toàn bộ VM trên pve1",
+      "all": false,
+      "vmid": "100,101",
+      "node": "pve1",
+      "prune-backups": "keep-last=3,keep-daily=7"
+    }
+  ],
+  "users": [
+    {
+      "userid": "root@pam",
+      "enable": true,
+      "realm": "pam",
+      "comment": "Quản trị viên"
+    },
+    {
+      "userid": "vanhanh@pve",
+      "enable": true,
+      "realm": "pve",
+      "comment": "Tài khoản vận hành",
+      "groups": "operators"
+    }
+  ],
+  "pools": [
+    {
+      "poolid": "production",
+      "comment": "Máy ảo chạy thật"
+    }
+  ]
+}
