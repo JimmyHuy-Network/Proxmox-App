@@ -76,7 +76,7 @@ npm run dev -- --fixture huge --quiet
 Đổi fixture khi server đang chạy:
 
 ```bash
-curl -k -X POST https://127.0.0.1:8006/__mock/fixture/huge
+curl -k -X POST https://127.0.0.1:8006/__mock/scenario/huge
 curl -k https://127.0.0.1:8006/__mock/fixtures
 ```
 
