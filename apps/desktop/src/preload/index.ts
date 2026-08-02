@@ -110,8 +110,18 @@ const api = {
   console: {
     open(
       request: ConsoleOpenRequest,
+      options?: { detach?: boolean },
     ): Promise<{ ok: true; data: ConsoleOpenResult | null } | { ok: false; message: string }> {
-      return ipcRenderer.invoke(IpcChannel.Console, { action: 'open', request })
+      return ipcRenderer.invoke(IpcChannel.Console, {
+        action: 'open',
+        request,
+        ...(options?.detach ? { detach: true } : {}),
+      })
+    },
+    openSpice(
+      request: ConsoleOpenRequest,
+    ): Promise<{ ok: true; data: { path: string } | null } | { ok: false; message: string }> {
+      return ipcRenderer.invoke(IpcChannel.Console, { action: 'openSpice', request })
     },
     close(sessionId: string): Promise<unknown> {
       return ipcRenderer.invoke(IpcChannel.Console, { action: 'close', sessionId })

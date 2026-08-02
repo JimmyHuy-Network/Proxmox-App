@@ -7,6 +7,7 @@ import { MockContext, FIXTURES, type FixtureName } from './context.ts'
 import { registerSchemaRoutes } from './router.ts'
 import { buildHandlers } from './handlers/index.ts'
 import { registerControlApi } from './control.ts'
+import { attachConsoleWebSocket } from './console/websocket.ts'
 
 /**
  * Máy chủ Proxmox VE giả lập.
@@ -92,6 +93,9 @@ export async function startMockServer(options: StartOptions = {}) {
 
   await app.listen({ port, host })
 
+  // WebSocket console gắn SAU listen — `app.server` lúc này đã là HTTPS server thật.
+  const consoleWss = attachConsoleWebSocket(app.server, mock.auth, mock.consoleTickets)
+
   // Đọc cổng THẬT chứ không dùng lại tham số: truyền 0 nghĩa là nhờ hệ điều hành
   // cấp một cổng trống, và lúc đó `port` vẫn đang là 0.
   const address = app.server.address()
@@ -117,6 +121,8 @@ export async function startMockServer(options: StartOptions = {}) {
     mock,
     routeCount,
     async close(): Promise<void> {
+      for (const client of consoleWss.clients) client.terminate()
+      consoleWss.close()
       mock.stop()
       await app.close()
     },

@@ -2,10 +2,10 @@
 
 Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: hết giai đoạn 6 (Storage) trên nhánh này** (GĐ 5 Console có thể còn ở PR riêng).
-> Bộ khung Electron, client **675 endpoint**, mock, vault/TOFU/TFA, cây tài nguyên + TaskDock
-> + RRD, guest lifecycle GĐ 4. Storage GĐ 6: content browser, upload stream qua main (tiến trình
-> /huỷ), download-url, vzdump + lịch backup, restore, CRUD storage + scan, fixture NFS/PBS.
+> **Trạng thái: hết giai đoạn 0–6** (Console + Storage). Bộ khung Electron, client **675 endpoint**,
+> mock (termproxy/vncproxy + fake RFB/shell + storage multipart), vault/TOFU/TFA, cây tài nguyên
+> + TaskDock + RRD, guest lifecycle GĐ 4, **console GĐ 5** (noVNC/xterm/shell/SPICE), **storage
+> GĐ 6** (content browser, upload stream qua main, vzdump + lịch backup, restore, CRUD/scan).
 
 ## Thử luồng đầy đủ
 
@@ -18,11 +18,16 @@ npm run dev:mock
 Rồi trong app (một terminal khác `npm run dev`), thêm kết nối tới `127.0.0.1:8006`,
 tài khoản `root@pam`, mật khẩu bất kỳ (trừ `sai`). App sẽ hiện dialog xác nhận vân tay
 chứng chỉ tự ký — bấm tin tưởng — rồi cây tài nguyên bên trái hiện node/VM/container thật
-từ mock, cập nhật mỗi 3 giây. Bấm vào một guest để mở khung chi tiết có ba tab: **Tổng quan**
-(biểu đồ CPU/RAM, nút Khởi động/Tắt máy/Khởi động lại — bấm sẽ mở một tác vụ, hiện ngay
-trong dock nhật ký tác vụ ở đáy màn hình với log chạy trực tiếp), **Phần cứng** (bảng cấu
-hình thô, chỉ đọc), và **Snapshot** (tạo snapshot mới, rollback hoặc xóa snapshot đã có —
-mỗi thao tác cũng mở một tác vụ theo dõi được).
+từ mock, cập nhật mỗi 3 giây. Bấm vào một guest để mở khung chi tiết: **Tổng quan**,
+**Console** (VNC / Terminal / SPICE), **Phần cứng**, **Snapshot**, Options, Cloud-Init,
+Quyền, Tác vụ. Tab Console nối thật tới mock qua `/vncproxy`+`/vncwebsocket` (noVNC) hoặc
+`/termproxy` (xterm.js). Nút **Shell** cạnh tên node mở shell node trong cửa sổ tách.
+
+Trên VM headless (không có libsecret), dùng hook E2E để bỏ qua vault mã hoá:
+
+```bash
+DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
+```
 
 Thử tài khoản `tfa@pve` để xem luồng nhập OTP (mã `123456`).
 

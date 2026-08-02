@@ -79,6 +79,15 @@ export function AppLayout(): React.JSX.Element {
     return unsubscribe
   }, [refresh])
 
+  // Cửa sổ console tách — chỉ cần nội dung, không sider/header/dock.
+  if (pathname.startsWith('/console/session')) {
+    return (
+      <Layout style={{ height: '100vh', background: '#0b0d10' }}>
+        <Outlet />
+      </Layout>
+    )
+  }
+
   return (
     <Layout style={{ height: '100vh' }}>
       <Header

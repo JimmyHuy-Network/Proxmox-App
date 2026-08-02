@@ -19,10 +19,11 @@ import { createMainWindow, installNavigationGuards, openExternalLink } from './w
 const isDev = !app.isPackaged
 const relay = new ConsoleRelayServer()
 
-/** Đẩy một sự kiện tới renderer của cửa sổ chính (nếu có). */
+/** Đẩy sự kiện tới mọi cửa sổ renderer (cửa sổ chính + console tách). */
 function pushEvent(event: PveEvent): void {
-  const [window] = BrowserWindow.getAllWindows()
-  window?.webContents.send(IpcChannel.PveEvent, event)
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(IpcChannel.PveEvent, event)
+  }
 }
 
 // Một tiến trình duy nhất: mở app lần hai sẽ dựng lại cửa sổ đang có thay vì tạo
@@ -80,7 +81,7 @@ async function bootstrap(): Promise<void> {
   })
 
   await relay.start()
-  registerConsoleHandlers(relay)
+  registerConsoleHandlers(relay, pool, pushEvent)
   registerPveHandlers(pool, taskTracker)
   registerVaultHandlers(vault, pool)
   registerStreamHandlers(resourcePoller)

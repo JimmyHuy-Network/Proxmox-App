@@ -219,7 +219,21 @@ export class ManagedConnection {
    * WebSocket dùng header Authorization thay cho cookie (xem relay-server).
    */
   sessionCookie(): string | null {
-    return this.ticketAuth?.sessionCookie() ?? null
+    return this.auth?.sessionCookie() ?? this.ticketAuth?.sessionCookie() ?? null
+  }
+
+  /** Thông tin cần để main mở WebSocket console thượng nguồn (host + TLS + auth). */
+  consoleEndpoint(): ConsoleEndpoint | null {
+    if (!this.auth || this.phase !== 'authenticated') return null
+    return {
+      host: this.meta.host,
+      port: this.meta.port,
+      username: this.auth.consoleUsername(),
+      cookie: this.auth.sessionCookie(),
+      authorization: this.auth.authorizationHeader(),
+      ...(this.meta.certFingerprint ? { pinnedFingerprint: this.meta.certFingerprint } : {}),
+      allowSelfSigned: this.meta.allowSelfSigned,
+    }
   }
 
   /** Gọi một endpoint. Ném lỗi nếu chưa mở kết nối. */
@@ -240,6 +254,16 @@ export class ManagedConnection {
     this.pendingTfaTicket = null
     this.setPhase('idle')
   }
+}
+
+export interface ConsoleEndpoint {
+  host: string
+  port: number
+  username: string
+  cookie: string | null
+  authorization: string | null
+  pinnedFingerprint?: string
+  allowSelfSigned: boolean
 }
 
 function loginErrorMessage(error: unknown): string {

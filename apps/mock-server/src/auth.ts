@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import type { FastifyRequest } from 'fastify'
+import type { IncomingHttpHeaders } from 'node:http'
 
 /**
  * Xác thực giả lập.
@@ -118,7 +118,11 @@ export interface AuthContext {
   csrfToken?: string
 }
 
-export function authenticate(store: AuthStore, request: FastifyRequest): AuthContext | null {
+/** Đủ cho cả FastifyRequest và IncomingMessage của bước WebSocket upgrade. */
+export function authenticate(
+  store: AuthStore,
+  request: { headers: IncomingHttpHeaders },
+): AuthContext | null {
   const authorization = request.headers['authorization']
   if (typeof authorization === 'string' && authorization.startsWith('PVEAPIToken=')) {
     const token = store.verifyToken(authorization)
