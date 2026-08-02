@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { App, Button, Popconfirm, type ButtonProps } from 'antd'
+import { App, Button, Popconfirm, Tooltip, type ButtonProps } from 'antd'
 import { isUpid } from '@pve/api'
 import type { PveHttpMethod } from '@pve/ipc'
 import { pveRequest } from '../lib/pve'
@@ -26,6 +26,8 @@ export function TaskButton({
   type = 'default',
   size,
   disabled,
+  allowed = true,
+  denyReason,
   onDone,
 }: {
   connectionId: string
@@ -40,6 +42,9 @@ export function TaskButton({
   type?: ButtonProps['type']
   size?: ButtonProps['size']
   disabled?: boolean
+  /** GĐ 8: thiếu quyền → disabled + tooltip thay vì bấm rồi 403. */
+  allowed?: boolean
+  denyReason?: string
   onDone?: (ok: boolean) => void
 }): React.JSX.Element {
   const { message } = App.useApp()
@@ -48,6 +53,7 @@ export function TaskButton({
 
   const running = upid !== null && task !== undefined && task.phase !== 'done'
   const sending = upid !== null && task === undefined
+  const blocked = !allowed
 
   // Báo kết quả đúng một lần mỗi UPID, khi tác vụ chuyển sang 'done'. Dùng ref
   // thay vì state để đánh dấu "đã báo" — nó không tự thân cần kích hoạt render
@@ -87,14 +93,23 @@ export function TaskButton({
       size={size}
       icon={icon}
       loading={sending || running}
-      disabled={disabled}
-      onClick={confirmMessage ? undefined : () => void handleClick()}
+      disabled={disabled || blocked}
+      onClick={confirmMessage || blocked ? undefined : () => void handleClick()}
     >
       {label}
     </Button>
   )
 
-  if (!confirmMessage) return button
+  const maybeTooltip =
+    blocked && denyReason ? (
+      <Tooltip title={denyReason}>
+        <span style={{ display: 'inline-block' }}>{button}</span>
+      </Tooltip>
+    ) : (
+      button
+    )
+
+  if (!confirmMessage || blocked) return maybeTooltip
 
   return (
     <Popconfirm title={confirmMessage} onConfirm={() => void handleClick()} okText="Đồng ý" cancelText="Huỷ">

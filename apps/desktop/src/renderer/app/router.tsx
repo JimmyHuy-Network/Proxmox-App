@@ -6,6 +6,9 @@ import { ConsoleSessionPage } from '../routes/ConsoleSessionPage'
 import { ClusterLogPage } from '../routes/ClusterLogPage'
 import { ConnectionsPage } from '../features/connections/ConnectionsPage'
 import { ClusterPage } from '../features/cluster/ClusterPage'
+import { AccessPage } from '../features/access/AccessPage'
+import { FirewallPage } from '../features/firewall/FirewallPage'
+import { DatacenterExtrasPage } from '../features/datacenter/DatacenterExtrasPage'
 
 const rootRoute = createRootRoute({ component: AppLayout })
 
@@ -45,6 +48,24 @@ const clusterRoute = createRoute({
   component: ClusterPage,
 })
 
+const accessRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/access',
+  component: AccessPage,
+})
+
+const firewallRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/firewall',
+  component: FirewallPage,
+})
+
+const datacenterRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/datacenter',
+  component: DatacenterExtrasPage,
+})
+
 const routeTree = rootRoute.addChildren([
   dashboardRoute,
   connectionsRoute,
@@ -52,6 +73,9 @@ const routeTree = rootRoute.addChildren([
   consoleSessionRoute,
   clusterLogRoute,
   clusterRoute,
+  accessRoute,
+  firewallRoute,
+  datacenterRoute,
 ])
 
 export const router = createRouter({

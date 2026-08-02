@@ -33,7 +33,7 @@ const COMMON_ROLES = [
 
 /**
  * Quyền/ACL theo guest — lọc `/access/acl` theo path `/vms/{vmid}`.
- * Access đầy đủ (users/groups/realms) thuộc giai đoạn 8.
+ * Quản trị Access đầy đủ: trang `/access` (GĐ 8).
  */
 export function PermissionsTab({
   connectionId,

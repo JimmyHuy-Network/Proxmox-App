@@ -16,6 +16,8 @@ import { AptTab } from './AptTab'
 import { CertsTab } from './CertsTab'
 import { LogsTab } from './LogsTab'
 import { CephTab } from './CephTab'
+import { RulesPanel } from '../firewall/FirewallPage'
+import { usePermissions } from '../../hooks/usePermissions'
 
 interface NodeStatus {
   uptime?: number
@@ -67,6 +69,8 @@ export function NodeDrawer(): React.JSX.Element {
   })
 
   const online = nodeRes?.status === 'online'
+  const { can } = usePermissions(activeId)
+  const canModifyFw = can('Sys.Modify', '/')
 
   return (
     <Drawer
@@ -177,6 +181,18 @@ export function NodeDrawer(): React.JSX.Element {
               key: 'ceph',
               label: t('node.tabCeph'),
               children: <CephTab connectionId={activeId} node={node} />,
+            },
+            {
+              key: 'firewall',
+              label: t('node.tabFirewall'),
+              children: (
+                <RulesPanel
+                  connectionId={activeId}
+                  path="/nodes/{node}/firewall/rules"
+                  params={{ node }}
+                  canModify={canModifyFw}
+                />
+              ),
             },
           ]}
         />
