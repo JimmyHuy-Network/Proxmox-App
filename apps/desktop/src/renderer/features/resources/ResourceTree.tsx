@@ -100,7 +100,18 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
         key: n.id,
         selectable: true,
         title: (
-          <Flex align="center" gap={6} justify="space-between" style={{ width: '100%', paddingInlineEnd: 4 }}>
+          <Flex
+            align="center"
+            gap={6}
+            justify="space-between"
+            style={{ width: '100%', paddingInlineEnd: 4, cursor: 'pointer' }}
+            onClick={(e) => {
+              // Click tiêu đề node (không phải nút Shell) → mở NodeDrawer.
+              // Ant Design Tree đôi khi nuốt select khi click vùng title phức tạp.
+              e.stopPropagation()
+              select(n)
+            }}
+          >
             <Flex align="center" gap={6}>
               <Badge status={statusOf(n)} />
               <Typography.Text strong>{nodeName}</Typography.Text>
@@ -154,6 +165,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
           treeData={treeData}
           defaultExpandedKeys={allNodeKeys}
           selectedKeys={selectedKey ? [selectedKey] : []}
+          expandAction="doubleClick"
           onSelect={(_keys, info) => {
             const resource = (resources as ClusterResource[]).find((r) => r.id === info.node.key)
             if (!resource) return
