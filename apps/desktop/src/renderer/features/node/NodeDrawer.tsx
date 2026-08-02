@@ -11,6 +11,11 @@ import { NetworkTab } from './NetworkTab'
 import { DnsTab } from './DnsTab'
 import { HostsTab } from './HostsTab'
 import { TimeTab } from './TimeTab'
+import { DisksTab } from './DisksTab'
+import { AptTab } from './AptTab'
+import { CertsTab } from './CertsTab'
+import { LogsTab } from './LogsTab'
+import { CephTab } from './CephTab'
 
 interface NodeStatus {
   uptime?: number
@@ -24,7 +29,7 @@ interface NodeStatus {
 }
 
 /**
- * Drawer chi tiết node (GĐ 7): tổng quan, mạng, DNS, hosts, time.
+ * Drawer chi tiết node (GĐ 7): overview, network, disks, apt, certs, logs, ceph…
  */
 export function NodeDrawer(): React.JSX.Element {
   const { t } = useTranslation()
@@ -66,7 +71,7 @@ export function NodeDrawer(): React.JSX.Element {
   return (
     <Drawer
       open={open}
-      width={720}
+      width={860}
       onClose={() => select(null)}
       destroyOnHidden
       title={
@@ -134,6 +139,11 @@ export function NodeDrawer(): React.JSX.Element {
               children: <NetworkTab connectionId={activeId} node={node} />,
             },
             {
+              key: 'disks',
+              label: t('node.tabDisks'),
+              children: <DisksTab connectionId={activeId} node={node} />,
+            },
+            {
               key: 'dns',
               label: t('node.tabDns'),
               children: <DnsTab connectionId={activeId} node={node} />,
@@ -147,6 +157,26 @@ export function NodeDrawer(): React.JSX.Element {
               key: 'time',
               label: t('node.tabTime'),
               children: <TimeTab connectionId={activeId} node={node} />,
+            },
+            {
+              key: 'apt',
+              label: t('node.tabApt'),
+              children: <AptTab connectionId={activeId} node={node} />,
+            },
+            {
+              key: 'certs',
+              label: t('node.tabCerts'),
+              children: <CertsTab connectionId={activeId} node={node} />,
+            },
+            {
+              key: 'logs',
+              label: t('node.tabLogs'),
+              children: <LogsTab connectionId={activeId} node={node} />,
+            },
+            {
+              key: 'ceph',
+              label: t('node.tabCeph'),
+              children: <CephTab connectionId={activeId} node={node} />,
             },
           ]}
         />

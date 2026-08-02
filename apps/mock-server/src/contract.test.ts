@@ -86,6 +86,8 @@ function valueForParam(name: string, spec: PveParamSpec, path: string): string {
       return 'local:iso/debian-13.0.0-amd64-netinst.iso'
     case 'iface':
       return 'vmbr0'
+    case 'disk':
+      return '/dev/sda'
     case 'id':
       // Backup job seed trong cluster-3node.
       if (path.includes('/cluster/backup')) return 'backup-nightly'

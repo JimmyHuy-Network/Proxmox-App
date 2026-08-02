@@ -305,6 +305,49 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 800, log: 'ifup -a' },
     { atMs: 1200, done: 'OK' },
   ],
+  diskinit: [
+    { atMs: 300, log: 'create GPT' },
+    { atMs: 900, done: 'OK' },
+  ],
+  diskwipe: [
+    { atMs: 200, log: 'wipe disk' },
+    { atMs: 1500, done: 'OK' },
+  ],
+  dircreate: [{ atMs: 800, done: 'OK' }],
+  dirremove: [{ atMs: 600, done: 'OK' }],
+  lvmcreate: [{ atMs: 1000, done: 'OK' }],
+  lvmremove: [{ atMs: 800, done: 'OK' }],
+  lvmthincreate: [{ atMs: 1000, done: 'OK' }],
+  lvmthinremove: [{ atMs: 800, done: 'OK' }],
+  zfscreate: [
+    { atMs: 400, log: 'zpool create' },
+    { atMs: 1400, done: 'OK' },
+  ],
+  zfsremove: [{ atMs: 1000, done: 'OK' }],
+  aptupdate: [
+    { atMs: 300, log: 'apt-get update' },
+    { atMs: 1200, done: 'OK' },
+  ],
+  acmeorder: [
+    { atMs: 400, log: 'order certificate' },
+    { atMs: 1600, done: 'OK' },
+  ],
+  acmerenew: [{ atMs: 1200, done: 'OK' }],
+  acmerevoke: [{ atMs: 800, done: 'OK' }],
+  acmeaccount: [{ atMs: 1000, done: 'OK' }],
+  cephosdcreate: [
+    { atMs: 500, log: 'create OSD' },
+    { atMs: 2000, done: 'OK' },
+  ],
+  cephpoolcreate: [{ atMs: 1200, done: 'OK' }],
+  clustercreate: [
+    { atMs: 400, log: 'create cluster' },
+    { atMs: 1500, done: 'OK' },
+  ],
+  clusterjoin: [
+    { atMs: 400, log: 'join cluster' },
+    { atMs: 1800, done: 'OK' },
+  ],
 }
 
 export function templateFor(type: string): TaskStep[] {

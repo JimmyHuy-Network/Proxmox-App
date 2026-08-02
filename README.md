@@ -2,9 +2,9 @@
 
 Ứng dụng desktop (Electron) quản lý Proxmox VE — mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: giai đoạn 7 MVP** (NodeDrawer — network/DNS/hosts/time). Giai đoạn 0–6 đã
-> merge: client **675 endpoint**, mock HTTPS, vault/TOFU/TFA, cây tài nguyên + TaskDock + RRD,
-> guest lifecycle, console (noVNC/xterm/SPICE), storage (content/upload/vzdump/PBS).
+> **Trạng thái: hết giai đoạn 7** (hạ tầng node & cluster). Giai đoạn 0–6 đã merge. Client
+> **675 endpoint**, mock HTTPS (kèm `broken-cluster`), vault/TOFU/TFA, guest/console/storage,
+> NodeDrawer (network/disks/apt/certs/logs/ceph), trang Cluster create/join.
 
 Chi tiết bàn giao: [`docs/handoff.md`](docs/handoff.md) · kế hoạch: [`docs/plan.md`](docs/plan.md).
 
@@ -72,6 +72,7 @@ npm run dev -- --fixture huge --quiet
 |---|---|
 | `cluster-3node` | 3 node, vài guest, storage local/NFS/PBS — dùng hàng ngày |
 | `huge` | 8 node / ~400 guest — smoke cây tài nguyên / tìm kiếm |
+| `broken-cluster` | pve3 offline, Ceph `HEALTH_WARN` — kiểm UI degraded |
 
 Đổi fixture khi server đang chạy:
 

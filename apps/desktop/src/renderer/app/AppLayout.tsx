@@ -3,6 +3,7 @@ import { Badge, Divider, Dropdown, Layout, Menu, Space, Typography, theme } from
 import {
   ApiOutlined,
   CodeOutlined,
+  ClusterOutlined,
   DashboardOutlined,
   DownOutlined,
   FileSearchOutlined,
@@ -159,6 +160,11 @@ export function AppLayout(): React.JSX.Element {
                 key: '/cluster-log',
                 icon: <FileSearchOutlined />,
                 label: <Link to="/cluster-log">{t('nav.clusterLog')}</Link>,
+              },
+              {
+                key: '/cluster',
+                icon: <ClusterOutlined />,
+                label: <Link to="/cluster">{t('nav.cluster')}</Link>,
               },
             ]}
           />

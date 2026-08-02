@@ -1,28 +1,27 @@
-# Bàn giao — giai đoạn 7 (đang làm)
+# Bàn giao — hết giai đoạn 7
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
-hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
-phần kiến thức không đọc ra được từ mã nguồn.
+hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải**.
 
-Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng dẫn chạy nằm ở [../README.md](../README.md).
+Kế hoạch: [plan.md](plan.md) · Chạy thử: [../README.md](../README.md).
 
 ---
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0–6 đã merge vào `main`.** Giai đoạn 7 (hạ tầng node & cluster) **MVP đã mở**:
-NodeDrawer + network pending/apply/revert + DNS/hosts/time.
+**Giai đoạn 0–7 hoàn tất** (GĐ 7 trên nhánh này / PR). Việc tiếp theo: **giai đoạn 8 — Access /
+Firewall / SDN / HA**.
 
 | Hạng mục | Trạng thái |
 |---|---|
-| Bộ khung → Storage (GĐ 0–6) + gaps | Xong (main) |
-| **Node selectable trên cây** + `selectedNode` | Xong, GĐ 7 MVP |
-| **`NodeDrawer`** overview / network / DNS / hosts / time | Xong, GĐ 7 MVP |
-| **Mock** network stateful + apply UPID + revert | Xong, GĐ 7 MVP |
-| Disks + SMART, LVM/ZFS/dir create | Chưa |
-| Apt / updates, certificates/ACME | Chưa |
-| Ceph đầy đủ + fixture `broken-cluster` | Chưa |
-| Syslog/journal, cluster join/create | Chưa |
+| GĐ 0–6 + gaps (console, storage, search, huge…) | Xong (main) |
+| **NodeDrawer** (overview/network/DNS/hosts/time) | Xong, GĐ 7 |
+| **Disks** (list, SMART, initgpt, wipe, dir/LVM/ZFS) | Xong, GĐ 7 |
+| **Apt** updates/versions + TaskButton refresh | Xong, GĐ 7 |
+| **Certificates** info + ACME order/renew | Xong, GĐ 7 |
+| **Syslog / journal** | Xong, GĐ 7 |
+| **Ceph** status/MON/pool + fixture `broken-cluster` | Xong, GĐ 7 |
+| **Cluster** create/join page + corosync nodes | Xong, GĐ 7 |
 
 ### Kiểm chứng
 
@@ -32,43 +31,41 @@ npm test && npm run typecheck && npm run lint
 
 ```bash
 npm run dev:mock
+# hoặc: npm run dev --workspace=@pve/mock-server -- --fixture broken-cluster
 DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
-# Click node trên cây → Network: thêm bridge → Apply / Revert
 ```
 
----
-
-## 2–5. Quyết định & bẫy (các GĐ trước — vẫn hiệu lực)
-
-Giữ nguyên các mục từ handoff GĐ 5–6: relay console, transfer stream qua main,
-multipart mock, bẫy QEMU `memory` kiểu chuỗi, headless `PVE_E2E_MOCK_URL`.
-
-**Network pending (GĐ 7):** mock giữ `network` (working) + `committed` (đã apply).
-`POST/PUT/DELETE …/network/{iface}` sửa working và đánh dấu pending; `PUT …/network`
-= apply (UPID `networkreload`); `DELETE …/network` = revert về committed. UI banner
-pending là client-side sau thao tác chỉnh sửa.
+Click node → tabs Disks / Updates / Certificates / Logs / Ceph. Menu **Cluster** để create/join.
 
 ---
 
-## 6. Việc tiếp theo — phần còn lại GĐ 7
+## 2. Quyết định GĐ 7
 
-1. Disks list + SMART + init GPT / wipe
-2. Tạo directory / LVM / LVMthin / ZFS pool (scan helpers GĐ 6 đã có stub)
-3. Apt repositories + `POST …/apt/update` (TaskButton)
-4. Certificates + ACME (node + cluster)
-5. Syslog / journal viewer
-6. Ceph status/OSD/pool + fixture **`broken-cluster`** (plan §8)
-7. Cluster create / join UI
+**State hạ tầng trong `MockContext`**, không nhét JSON fixture: `ensureNodeInfra(node)` seed
+eth0/vmbr0 + disks/apt/certs; Ceph/cluster config là object dùng chung cụm.
 
-### Điểm nối
+**Network pending:** working copy + `committed`; Apply = UPID `networkreload`; Revert =
+`DELETE /nodes/{node}/network`.
 
-- `TaskButton` / `PveGrid` / `PveForm` / `NodeDrawer` tabs
-- Seed mạng mặc định: `defaultNodeInfra()` trong `state/node-infra.ts` (eth0 + vmbr0)
-- Handlers: `handlers/node-infra.ts`
+**`broken-cluster`:** pve3 offline, `quorate: false`, Ceph `HEALTH_WARN` (1 OSD down).
 
 ---
 
-## 7–8. Câu hỏi để ngỏ
+## 3. Việc tiếp theo — giai đoạn 8
 
-1. **Ký số Windows** — EV/OV trước phát hành.
-2. Icon riêng (đang dùng mặc định Electron).
+Access (users/groups/roles/ACL/token/realms/TFA), Firewall 3 cấp + security group/IPSet,
+SDN, HA, ZFS replication, notification targets, metric servers.
+
+### Điểm nối còn hiệu lực
+
+- `TaskButton` / `PveGrid` / `PveForm` / drawer tabs
+- Handlers: `node-infra.ts`, `node-system.ts`, `ceph-cluster.ts`
+- Upload lớn chỉ qua `pve:transfer`
+- Headless: `PVE_E2E_MOCK_URL` + E2E encryptor
+
+---
+
+## 4. Câu hỏi để ngỏ
+
+1. Ký số Windows (EV/OV).
+2. Icon riêng.
