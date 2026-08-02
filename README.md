@@ -2,11 +2,10 @@
 
 Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: hết giai đoạn 5 (Console) → sẵn sàng giai đoạn 6 (Storage).** Bộ khung Electron,
-> client Proxmox có kiểu cho **675 endpoint**, mock server (kể cả termproxy/vncproxy + fake
-> RFB/shell), vault/TOFU/TFA, cây tài nguyên + TaskDock + RRD, guest lifecycle GĐ 4, và
-> **console GĐ 5**: noVNC + xterm.js qua relay, tab Console trên guest, shell node, cửa sổ
-> tách, SPICE `.vv`, toolbar Ctrl-Alt-Del / fullscreen.
+> **Trạng thái: hết giai đoạn 0–6** (Console + Storage). Bộ khung Electron, client **675 endpoint**,
+> mock (termproxy/vncproxy + fake RFB/shell + storage multipart), vault/TOFU/TFA, cây tài nguyên
+> + TaskDock + RRD, guest lifecycle GĐ 4, **console GĐ 5** (noVNC/xterm/shell/SPICE), **storage
+> GĐ 6** (content browser, upload stream qua main, vzdump + lịch backup, restore, CRUD/scan).
 
 ## Thử luồng đầy đủ
 

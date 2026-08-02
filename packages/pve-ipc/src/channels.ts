@@ -22,6 +22,11 @@ export const IpcChannel = {
   Vault: 'app:vault',
   /** Mở/đóng phiên console, trả về URL relay nội bộ. */
   Console: 'app:console',
+  /**
+   * Upload/download file lớn — stream qua main (không đi qua renderer).
+   * Tiến trình đẩy qua `PveEvent` kind `transfer`.
+   */
+  Transfer: 'pve:transfer',
   /** Các lời gọi cấp ứng dụng: phiên bản, mở link ngoài, log, cập nhật. */
   App: 'app:misc',
 } as const

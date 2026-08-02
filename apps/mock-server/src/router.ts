@@ -170,6 +170,8 @@ export function registerSchemaRoutes(
         mock,
         reply,
       })
+      // Handler có thể đã gửi raw body (vd. download file) — đừng bọc `{ data }` nữa.
+      if (reply.sent) return
       return { data: result ?? null }
     }
 

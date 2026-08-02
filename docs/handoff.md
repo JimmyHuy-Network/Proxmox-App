@@ -1,4 +1,4 @@
-# Bàn giao — hết giai đoạn 5
+# Bàn giao — hết giai đoạn 6
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
@@ -10,10 +10,9 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0–5 hoàn tất.** Console theo plan §6 GĐ 5: relay + session token (từ GĐ 0),
-noVNC, xterm.js + term-attach, tab console trên guest **và** cửa sổ tách, toolbar
-(Ctrl-Alt-Del, fullscreen, reconnect), node shell, SPICE `.vv`, mock RFB + fake shell
-trên mock-server. 222+ test đạt, typecheck desktop và lint sạch.
+**Giai đoạn 0–6 hoàn tất.** Console (GĐ 5) đã merge vào `main`; Storage (GĐ 6) trên nhánh
+này: content browser, upload/download stream qua main, vzdump + lịch backup, restore wizard,
+CRUD storage + scan, PBS fixture cơ bản.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -22,14 +21,19 @@ trên mock-server. 222+ test đạt, typecheck desktop và lint sạch.
 | Vault / TOFU / TFA / connection pool / IPC | Xong |
 | Resource poller + TaskDock + RrdChart + cây tài nguyên | Xong |
 | Guest lifecycle GĐ 4 (Hardware, Options, Cloud-Init, wizard, snapshot, clone…) | Xong |
-| **Relay console loopback + token một lần** | Xong (GĐ 0, giữ) |
-| **Upstream session** POST termproxy/vncproxy → WSS vncwebsocket + handshake | Xong |
-| **noVNC** (`RFB(target, ws)`) + **xterm.js** term-attach | Xong |
-| **Tab Console** trên GuestDrawer + shell node + cửa sổ tách | Xong |
-| **SPICE** ghi `.vv` + `shell.openPath` | Xong |
-| **Mock** termproxy/vncproxy/spiceproxy + WS upgrade + FakeShell + FakeRfb | Xong |
+| **Relay console + upstream session + noVNC/xterm + shell/SPICE** | Xong, GĐ 5 |
+| **Mock** termproxy/vncproxy/spiceproxy + WS + FakeShell + FakeRfb | Xong, GĐ 5 |
+| **Storage drawer** (overview/content/backup jobs) + chọn storage trên cây | Xong, GĐ 6 |
+| **Upload multipart stream qua main** + tiến trình/huỷ (`pve:transfer`) | Xong, GĐ 6 |
+| **download-url / vzdump / prune / restore** | Xong, GĐ 6 |
+| **Backup jobs CRUD** (`/cluster/backup`) + not-backed-up | Xong, GĐ 6 |
+| **Storage CRUD + scan NFS/PBS/…** | Xong, GĐ 6 |
+| **Mock** multipart upload, Fake volumes, nfs-backup + pbs-lab fixture | Xong, GĐ 6 |
 
-**Giai đoạn 5 đóng.** Việc tiếp theo là **giai đoạn 6 — Storage** (xem mục 6).
+Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
+đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
+
+**Giai đoạn 6 đóng.** Việc tiếp theo là **giai đoạn 7 — hạ tầng node & cluster** (xem mục 6).
 
 ### Kiểm chứng lại toàn bộ
 
@@ -121,19 +125,38 @@ reconnect, detach. Quality/clipboard có thể bổ sung mỏng sau nếu cần.
 
 ---
 
-## 6. Việc tiếp theo — giai đoạn 6 (Storage)
+## 6. Việc tiếp theo — giai đoạn 7 (node & cluster)
 
-Theo plan.md §6 GĐ 6:
+### Giai đoạn 6 đã đóng
 
-- Storage mọi loại (dir/LVM/ZFS/NFS/CIFS/iSCSI/CephFS/RBD/PBS/BTRFS)
-- Content browser + upload/download có tiến trình
-- vzdump jobs + lịch, restore wizard, tích hợp PBS
+1. Mock: `handlers/storage.ts` — content CRUD, multipart upload, download-url, vzdump,
+   prune, backup jobs, scan helpers, PBS file-restore list; fixture `nfs-backup` + `pbs-lab`.
+2. Desktop main: `pve:transfer` + `multipart-upload.ts` (stream đĩa → HTTPS, progress/cancel).
+3. Renderer: storage selectable trên cây → `StorageDrawer` (overview/content/backup jobs),
+   restore wizard, thêm storage + scan NFS/PBS.
+4. Tiêu chí plan §8: test upload **10 MB** + huỷ giữa chừng (`multipart-upload.test.ts`).
 
-### Điểm nối từ GĐ 5
+### Chưa làm / để mỏng
 
-- `TaskButton` / `PveGrid` / `PveForm` vẫn là trừu tượng chính.
-- Mock đã có `GET …/storage` và content list cơ bản — mở rộng handler upload/download.
-- Upload lớn phải stream qua main, không qua renderer (plan §8 GĐ 6).
+- Clipboard sync / quality slider VNC (GĐ 5) — có thể bổ sung sau.
+- Download local volume còn dựa `?download=1` mock (1 MiB giả) — đủ cho UI, chưa parity PBS
+  file-restore download đầy đủ.
+- Form thêm storage chưa cover hết mọi loại (iSCSI/Ceph/ZFS chỉ có scan stub + field cơ bản).
+
+### Giai đoạn 7 — hạ tầng node & cluster (plan §6)
+
+Network (bridge/bond/VLAN/OVS + pending/apply/revert), DNS/hosts/time, disks + SMART,
+LVM/ZFS/directory, Ceph đầy đủ, certificates/ACME, apt + updates, syslog/journal,
+cluster join/create. Dùng fixture `broken-cluster` khi có (Ceph degraded, node chết).
+
+### Điểm nối / bẫy vẫn còn hiệu lực
+
+- `TaskButton` / `PveGrid` / `PveForm` — dùng lại.
+- Upload lớn **chỉ** qua main (`pve:transfer`), không qua `pve:request` urlencoded.
+- Multipart mock: hook `preValidation` chuyển parts → body phẳng trước schema validate.
+- Console: handshake `user:ticket` trong main; noVNC nhận WebSocket đã sống.
+- **Bẫy QEMU `memory`:** type chuỗi trên PUT config — phải `String(memory)`.
+- Headless: `PVE_E2E_MOCK_URL` + `E2ePlainEncryptor` (không có libsecret).
 
 ---
 

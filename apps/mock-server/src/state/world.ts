@@ -55,6 +55,8 @@ export interface MockStorage {
   used: number
   avail: number
   contents: MockVolume[]
+  /** Tham số cấu hình theo loại (path, server, export, datastore…). */
+  config?: Record<string, string | number | boolean>
 }
 
 export interface MockVolume {
@@ -65,6 +67,26 @@ export interface MockVolume {
   vmid?: number
   ctime: number
   notes?: string
+  protected?: boolean
+  /** PBS / backup verification. */
+  verification?: string
+  encrypted?: boolean
+}
+
+/** Lịch vzdump cụm — `/cluster/backup`. */
+export interface MockBackupJob {
+  id: string
+  enabled: boolean
+  schedule: string
+  storage: string
+  mode: string
+  compress: string
+  comment?: string
+  all?: boolean
+  vmid?: string
+  'prune-backups'?: string
+  node?: string
+  mailnotification?: string
 }
 
 export interface MockUser {
@@ -84,6 +106,7 @@ export interface MockWorld {
   storages: MockStorage[]
   users: MockUser[]
   pools: { poolid: string; comment?: string }[]
+  backupJobs?: MockBackupJob[]
 }
 
 /**
@@ -142,6 +165,32 @@ export class World {
 
   storage(name: string): MockStorage | undefined {
     return this.state.storages.find((s) => s.storage === name)
+  }
+
+  backupJobs(): MockBackupJob[] {
+    if (!this.state.backupJobs) this.state.backupJobs = []
+    return this.state.backupJobs
+  }
+
+  addStorage(storage: MockStorage): void {
+    if (this.state.storages.some((s) => s.storage === storage.storage)) {
+      throw new Error(`storage '${storage.storage}' already exists`)
+    }
+    this.state.storages.push(storage)
+  }
+
+  removeStorage(name: string): boolean {
+    const before = this.state.storages.length
+    this.state.storages = this.state.storages.filter((s) => s.storage !== name)
+    return this.state.storages.length < before
+  }
+
+  /** Cập nhật used/avail sau khi thêm/xoá volume. */
+  adjustStorageUsage(name: string, deltaBytes: number): void {
+    const s = this.storage(name)
+    if (!s) return
+    s.used = Math.max(0, s.used + deltaBytes)
+    s.avail = Math.max(0, s.total - s.used)
   }
 
   /** Dạng tổng hợp mà `/cluster/resources` trả về — nền tảng của cây tài nguyên. */

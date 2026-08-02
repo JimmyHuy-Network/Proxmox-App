@@ -307,6 +307,65 @@
           "ctime": 1745000000
         }
       ]
+    },
+    {
+      "storage": "nfs-backup",
+      "type": "nfs",
+      "content": "backup,iso,vztmpl",
+      "shared": true,
+      "enabled": true,
+      "total": 1099511627776,
+      "used": 53687091200,
+      "avail": 1045824536576,
+      "config": {
+        "server": "192.168.1.50",
+        "export": "/export/pve",
+        "path": "/mnt/pve/nfs-backup"
+      },
+      "contents": []
+    },
+    {
+      "storage": "pbs-lab",
+      "type": "pbs",
+      "content": "backup",
+      "shared": true,
+      "enabled": true,
+      "total": 2199023255552,
+      "used": 107374182400,
+      "avail": 2091649073152,
+      "config": {
+        "server": "192.168.1.60",
+        "datastore": "store1",
+        "username": "root@pam!"
+      },
+      "contents": [
+        {
+          "volid": "pbs-lab:backup/vm/100/2026-07-28T03:00:02Z",
+          "format": "pbs-vm",
+          "size": 3221225472,
+          "content": "backup",
+          "vmid": 100,
+          "ctime": 1753670402,
+          "notes": "PBS nightly",
+          "encrypted": true,
+          "verification": "ok"
+        }
+      ]
+    }
+  ],
+  "backupJobs": [
+    {
+      "id": "backup-nightly",
+      "enabled": true,
+      "schedule": "02:00",
+      "storage": "local",
+      "mode": "snapshot",
+      "compress": "zstd",
+      "comment": "Sao lưu đêm toàn bộ VM trên pve1",
+      "all": false,
+      "vmid": "100,101",
+      "node": "pve1",
+      "prune-backups": "keep-last=3,keep-daily=7"
     }
   ],
   "users": [

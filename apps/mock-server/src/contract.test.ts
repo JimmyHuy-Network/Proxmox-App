@@ -81,6 +81,13 @@ function valueForParam(name: string, spec: PveParamSpec, path: string): string {
       return liveUpid
     case 'poolid':
       return 'production'
+    case 'volume':
+      // Volid có sẵn trong fixture local.
+      return 'local:iso/debian-13.0.0-amd64-netinst.iso'
+    case 'id':
+      // Backup job seed trong cluster-3node.
+      if (path.includes('/cluster/backup')) return 'backup-nightly'
+      break
     default:
       break
   }

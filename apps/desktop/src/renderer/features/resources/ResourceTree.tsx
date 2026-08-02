@@ -44,6 +44,8 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
   const [query, setQuery] = useState('')
   const select = useSelection((s) => s.select)
   const selectedGuest = useSelection((s) => s.selectedGuest)
+  const selectedStorage = useSelection((s) => s.selectedStorage)
+  const selectedKey = selectedGuest?.id ?? selectedStorage?.id
 
   const treeData = useMemo<DataNode[]>(() => {
     const rows = resources as ClusterResource[]
@@ -65,7 +67,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
         .map((r) => ({
           key: r.id,
           isLeaf: true,
-          selectable: isGuest(r),
+          selectable: isGuest(r) || r.type === 'storage',
           title: isGuest(r) ? (
             <Flex align="center" gap={6}>
               <Badge status={statusOf(r)} />
@@ -75,7 +77,12 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
           ) : (
             <Flex align="center" gap={6}>
               <DatabaseOutlined style={{ color: token.colorTextTertiary }} />
-              <Typography.Text type="secondary">{r.storage}</Typography.Text>
+              <Typography.Text>{r.storage}</Typography.Text>
+              {r.plugintype && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  ({r.plugintype})
+                </Typography.Text>
+              )}
             </Flex>
           ),
         }))
@@ -145,11 +152,11 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
         <Tree
           treeData={treeData}
           defaultExpandedKeys={allNodeKeys}
-          selectedKeys={selectedGuest ? [selectedGuest.id] : []}
+          selectedKeys={selectedKey ? [selectedKey] : []}
           onSelect={(_keys, info) => {
             if (!info.node.selectable) return
             const resource = (resources as ClusterResource[]).find((r) => r.id === info.node.key)
-            select(resource && isGuest(resource) ? resource : null)
+            select(resource ?? null)
           }}
           style={{ flex: 1, overflow: 'auto', paddingInline: 4 }}
         />

@@ -1,4 +1,5 @@
 import type { ConsoleClosedEvent } from './console'
+import type { TransferEvent } from './transfer'
 
 /**
  * Trạng thái xác thực của một kết nối. Renderer hiển thị thành chấm màu
@@ -76,3 +77,4 @@ export type PveEvent =
   | TaskEvent
   | LogChunkEvent
   | ConsoleEvent
+  | TransferEvent

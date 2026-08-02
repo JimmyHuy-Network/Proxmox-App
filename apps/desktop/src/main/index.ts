@@ -8,6 +8,7 @@ import { registerConsoleHandlers } from './ipc/console.handlers'
 import { registerPveHandlers } from './ipc/pve.handlers'
 import { registerVaultHandlers } from './ipc/vault.handlers'
 import { registerStreamHandlers } from './ipc/stream.handlers'
+import { registerTransferHandlers } from './ipc/transfer.handlers'
 import { E2ePlainEncryptor, SafeStorageEncryptor } from './security/encryptor'
 import { Vault } from './security/vault'
 import { ConnectionPool } from './pve/connection-pool'
@@ -84,6 +85,7 @@ async function bootstrap(): Promise<void> {
   registerPveHandlers(pool, taskTracker)
   registerVaultHandlers(vault, pool)
   registerStreamHandlers(resourcePoller)
+  registerTransferHandlers(pool, taskTracker, (event) => pushEvent(event))
   registerAppHandlers()
 
   // Playwright / E2E: ghi vault trước khi mở cửa sổ để `refresh()` lúc mount thấy

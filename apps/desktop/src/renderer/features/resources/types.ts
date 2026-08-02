@@ -12,6 +12,8 @@ export interface ClusterResource {
   vmid?: number
   storage?: string
   plugintype?: string
+  content?: string
+  shared?: number
   cpu?: number
   maxcpu?: number
   mem?: number

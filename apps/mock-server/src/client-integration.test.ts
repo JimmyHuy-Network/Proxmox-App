@@ -118,7 +118,13 @@ describe('đọc dữ liệu qua client có kiểu', () => {
 
   it('liệt kê storage của node', async () => {
     const storages = await client.request('GET', '/nodes/{node}/storage', { node: 'pve1' })
-    expect(storages.map((s) => s.storage).sort()).toEqual(['ceph-rbd', 'local', 'local-lvm'])
+    expect(storages.map((s) => s.storage).sort()).toEqual([
+      'ceph-rbd',
+      'local',
+      'local-lvm',
+      'nfs-backup',
+      'pbs-lab',
+    ])
   })
 
   it('duyệt nội dung storage', async () => {

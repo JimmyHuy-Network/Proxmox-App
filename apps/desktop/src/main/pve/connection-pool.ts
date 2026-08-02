@@ -110,6 +110,13 @@ export class ConnectionPool {
     return this.connections.get(id)?.sessionCookie() ?? null
   }
 
+  /** Kết nối đã xác thực — dùng cho upload multipart / download stream. */
+  getAuthenticated(id: string): ManagedConnection | null {
+    const conn = this.connections.get(id)
+    if (!conn || conn.getPhase() !== 'authenticated') return null
+    return conn
+  }
+
   /** Host + TLS + auth headers để main mở WebSocket console thượng nguồn. */
   consoleEndpoint(id: string): ConsoleEndpoint | null {
     return this.connections.get(id)?.consoleEndpoint() ?? null
