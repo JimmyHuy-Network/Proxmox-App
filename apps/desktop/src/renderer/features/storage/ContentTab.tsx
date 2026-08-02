@@ -12,7 +12,7 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { CloudDownloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { CloudDownloadOutlined, DownloadOutlined, FolderOpenOutlined, UploadOutlined } from '@ant-design/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { TaskButton } from '../../components/TaskButton'
@@ -22,6 +22,7 @@ import { formatBytes } from '../../components/RrdChart'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
 import { useTransfers } from '../../stores/transfers'
 import { useTasks } from '../../stores/tasks'
+import { FileRestoreModal } from './FileRestoreModal'
 
 interface VolumeRow {
   [key: string]: unknown
@@ -50,12 +51,15 @@ export function ContentTab({
   node,
   storage,
   contentTypes,
+  storageType,
   onRestore,
 }: {
   connectionId: string
   node: string
   storage: string
   contentTypes: string[]
+  /** plugintype từ /cluster/resources — dùng để bật PBS file-restore. */
+  storageType?: string
   onRestore?: (volid: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -67,11 +71,13 @@ export function ContentTab({
   )
   const [downloadOpen, setDownloadOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState<VolumeRow | null>(null)
+  const [fileRestoreVolume, setFileRestoreVolume] = useState<string | null>(null)
   const [activeTransferId, setActiveTransferId] = useState<string | null>(null)
   const [downloadForm] = Form.useForm<DownloadUrlValues>()
   const [notesForm] = Form.useForm<{ notes?: string; protected?: boolean }>()
   const addTask = useTasks((s) => s.addTask)
   const transfer = useTransfers((s) => (activeTransferId ? s.items[activeTransferId] : undefined))
+  const isPbs = storageType === 'pbs'
 
   const params = {
     node,
@@ -82,6 +88,47 @@ export function ContentTab({
   const invalidate = (): void => void queryClient.invalidateQueries({ queryKey: listKey })
 
   const uploadable = contentTypes.filter((c) => c === 'iso' || c === 'vztmpl' || c === 'import')
+  const downloadable = (row: VolumeRow): boolean =>
+    row.content === 'iso' || row.content === 'vztmpl' || row.content === 'snippets' || row.content === 'import'
+
+  const waitTransfer = async (transferId: string, okMsg: string): Promise<void> => {
+    setActiveTransferId(transferId)
+    await new Promise<void>((resolve) => {
+      const unsub = useTransfers.subscribe((state) => {
+        const tr = state.items[transferId]
+        if (!tr) return
+        if (tr.phase !== 'done' && tr.phase !== 'error' && tr.phase !== 'cancelled') return
+        unsub()
+        if (tr.phase === 'done') {
+          if (tr.upid) addTask(connectionId, tr.upid)
+          invalidate()
+          message.success(okMsg)
+        } else if (tr.phase === 'error') {
+          message.error(tr.message ?? t('common.error'))
+        } else {
+          message.warning(t('storage.uploadCancelled'))
+        }
+        useTransfers.getState().clear(transferId)
+        setActiveTransferId(null)
+        resolve()
+      })
+    })
+  }
+
+  const startVolumeDownload = async (row: VolumeRow): Promise<void> => {
+    const res = await window.pve.transfer.download({
+      connectionId,
+      node,
+      storage,
+      volume: row.volid,
+    })
+    if (!res.ok) {
+      message.error(res.message)
+      return
+    }
+    message.info(t('storage.downloadStarted'))
+    await waitTransfer(res.data.transferId, t('storage.downloadDone'))
+  }
 
   const startUpload = async (): Promise<void> => {
     const res = await window.pve.transfer.upload({
@@ -94,31 +141,8 @@ export function ContentTab({
       message.error(res.message)
       return
     }
-    const transferId = res.data.transferId
-    setActiveTransferId(transferId)
     message.info(t('storage.uploadStarted'))
-
-    // Chờ sự kiện kết thúc (store cũng nhận qua subscribePveEvents).
-    await new Promise<void>((resolve) => {
-      const unsub = useTransfers.subscribe((state) => {
-        const tr = state.items[transferId]
-        if (!tr) return
-        if (tr.phase !== 'done' && tr.phase !== 'error' && tr.phase !== 'cancelled') return
-        unsub()
-        if (tr.phase === 'done') {
-          if (tr.upid) addTask(connectionId, tr.upid)
-          invalidate()
-          message.success(t('storage.uploadDone'))
-        } else if (tr.phase === 'error') {
-          message.error(tr.message ?? t('storage.uploadFailed'))
-        } else {
-          message.warning(t('storage.uploadCancelled'))
-        }
-        useTransfers.getState().clear(transferId)
-        setActiveTransferId(null)
-        resolve()
-      })
-    })
+    await waitTransfer(res.data.transferId, t('storage.uploadDone'))
   }
 
   const inProgress =
@@ -205,9 +229,9 @@ export function ContentTab({
           {
             title: '',
             key: 'actions',
-            width: 280,
+            width: 360,
             render: (_, row) => (
-              <Space size={4}>
+              <Space size={4} wrap>
                 <Button
                   size="small"
                   onClick={() => {
@@ -220,9 +244,28 @@ export function ContentTab({
                 >
                   {t('storage.editNotes')}
                 </Button>
+                {downloadable(row) && (
+                  <Button
+                    size="small"
+                    icon={<DownloadOutlined />}
+                    disabled={Boolean(activeTransferId)}
+                    onClick={() => void startVolumeDownload(row)}
+                  >
+                    {t('storage.download')}
+                  </Button>
+                )}
                 {row.content === 'backup' && onRestore && (
                   <Button size="small" onClick={() => onRestore(row.volid)}>
                     {t('storage.restore')}
+                  </Button>
+                )}
+                {row.content === 'backup' && isPbs && (
+                  <Button
+                    size="small"
+                    icon={<FolderOpenOutlined />}
+                    onClick={() => setFileRestoreVolume(row.volid)}
+                  >
+                    {t('storage.fileRestore')}
                   </Button>
                 )}
                 <TaskButton
@@ -325,6 +368,15 @@ export function ContentTab({
           </PveForm>
         )}
       </Modal>
+
+      <FileRestoreModal
+        open={fileRestoreVolume !== null}
+        connectionId={connectionId}
+        node={node}
+        storage={storage}
+        volume={fileRestoreVolume ?? ''}
+        onClose={() => setFileRestoreVolume(null)}
+      />
     </Space>
   )
 }

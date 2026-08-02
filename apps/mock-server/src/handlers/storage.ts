@@ -155,8 +155,10 @@ export function registerStorageHandlers(on: (method: 'GET' | 'POST' | 'PUT' | 'D
       'path',
       'server',
       'export',
+      'share',
       'username',
       'password',
+      'domain',
       'datastore',
       'pool',
       'monhost',
@@ -165,6 +167,9 @@ export function registerStorageHandlers(on: (method: 'GET' | 'POST' | 'PUT' | 'D
       'vgname',
       'thinpool',
       'sparse',
+      'fs-name',
+      'namespace',
+      'fingerprint',
     ]) {
       if (input[key] !== undefined) config[key] = input[key] as string | number | boolean
     }
@@ -632,19 +637,82 @@ export function registerStorageHandlers(on: (method: 'GET' | 'POST' | 'PUT' | 'D
     { target: 'iqn.2024-01.local.lab:storage', portal: '192.168.1.70:3260' },
   ])
 
-  // ── PBS file-restore (đủ để UI duyệt) ──────────────────────────────────────
+  // ── PBS file-restore (duyệt + tải file) ─────────────────────────────────────
 
   on('GET', '/nodes/{node}/storage/{storage}/file-restore/list', ({ input, mock }) => {
     requireStorage(mock, str(input['storage']))
+    const volume = str(input['volume'] || '')
+    if (!volume) throw new HttpError(400, 'Parameter verification failed.', { volume: 'parameter is missing' })
+
     const filepath = str(input['filepath'] || '/')
-    if (filepath === '/' || filepath === Buffer.from('/').toString('base64')) {
+    const decoded =
+      filepath === '/' || filepath === ''
+        ? '/'
+        : (() => {
+            try {
+              return Buffer.from(filepath, 'base64').toString('utf8') || filepath
+            } catch {
+              return filepath
+            }
+          })()
+
+    if (decoded === '/' || decoded === '') {
       return [
-        { filepath: 'etc', type: 'd', text: 'etc', size: 0 },
-        { filepath: 'home', type: 'd', text: 'home', size: 0 },
-        { filepath: 'var/log/syslog', type: 'f', text: 'syslog', size: 4096 },
+        { filepath: Buffer.from('/etc').toString('base64'), text: 'etc', type: 'd', size: 0, leaf: 0 },
+        { filepath: Buffer.from('/home').toString('base64'), text: 'home', type: 'd', size: 0, leaf: 0 },
+        {
+          filepath: Buffer.from('/var/log/syslog').toString('base64'),
+          text: 'syslog',
+          type: 'f',
+          size: 4096,
+          leaf: 1,
+        },
       ]
     }
-    return [{ filepath: 'passwd', type: 'f', text: 'passwd', size: 2048 }]
+    if (decoded === '/etc' || decoded.endsWith('/etc')) {
+      return [
+        {
+          filepath: Buffer.from('/etc/passwd').toString('base64'),
+          text: 'passwd',
+          type: 'f',
+          size: 2048,
+          leaf: 1,
+        },
+        {
+          filepath: Buffer.from('/etc/hostname').toString('base64'),
+          text: 'hostname',
+          type: 'f',
+          size: 32,
+          leaf: 1,
+        },
+      ]
+    }
+    return []
+  })
+
+  on('GET', '/nodes/{node}/storage/{storage}/file-restore/download', ({ input, mock, reply, query }) => {
+    requireStorage(mock, str(input['storage']))
+    const volume = str(input['volume'] || query['volume'] || '')
+    const filepath = str(input['filepath'] || query['filepath'] || '')
+    if (!volume) throw new HttpError(400, 'Parameter verification failed.', { volume: 'parameter is missing' })
+    if (!filepath) throw new HttpError(400, 'Parameter verification failed.', { filepath: 'parameter is missing' })
+
+    let name = 'restored.bin'
+    try {
+      const decoded = Buffer.from(filepath, 'base64').toString('utf8')
+      name = decoded.split('/').filter(Boolean).pop() || name
+    } catch {
+      // giữ tên mặc định
+    }
+    const size = 2048
+    const buf = Buffer.alloc(size, 0x50)
+    buf.write(`pbs-file-restore:${volume}:${name}\n`, 0, 'utf8')
+    void reply
+      .header('Content-Type', 'application/octet-stream')
+      .header('Content-Length', String(size))
+      .header('Content-Disposition', `attachment; filename="${name}"`)
+    reply.send(buf)
+    return null
   })
 
   on('GET', '/nodes/{node}/storage/{storage}/identity', ({ input, mock }) => {

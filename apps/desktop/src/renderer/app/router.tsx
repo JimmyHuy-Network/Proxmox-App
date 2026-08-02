@@ -3,6 +3,7 @@ import { AppLayout } from './AppLayout'
 import { Dashboard } from '../routes/Dashboard'
 import { ConsolePage } from '../routes/ConsolePage'
 import { ConsoleSessionPage } from '../routes/ConsoleSessionPage'
+import { ClusterLogPage } from '../routes/ClusterLogPage'
 import { ConnectionsPage } from '../features/connections/ConnectionsPage'
 
 const rootRoute = createRootRoute({ component: AppLayout })
@@ -31,11 +32,18 @@ const consoleSessionRoute = createRoute({
   component: ConsoleSessionPage,
 })
 
+const clusterLogRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cluster-log',
+  component: ClusterLogPage,
+})
+
 const routeTree = rootRoute.addChildren([
   dashboardRoute,
   connectionsRoute,
   consoleRoute,
   consoleSessionRoute,
+  clusterLogRoute,
 ])
 
 export const router = createRouter({
