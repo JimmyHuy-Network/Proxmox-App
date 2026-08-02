@@ -3,6 +3,7 @@
  * Sinh lại fixtures/huge.json (8 node / 400 guest) — chạy khi cần chỉnh cấu trúc.
  * Usage: node apps/mock-server/scripts/generate-huge.mjs
  */
+/* eslint-disable no-undef */
 import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

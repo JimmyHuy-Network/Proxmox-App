@@ -700,7 +700,9 @@ export function registerStorageHandlers(on: (method: 'GET' | 'POST' | 'PUT' | 'D
     let name = 'restored.bin'
     try {
       const decoded = Buffer.from(filepath, 'base64').toString('utf8')
-      name = decoded.split('/').filter(Boolean).pop() || name
+      const leaf = decoded.split('/').filter(Boolean).pop()
+      // Chỉ giữ tên file ASCII an toàn cho Content-Disposition (contract dùng filepath=test).
+      if (leaf && /^[\w.+@-]+$/.test(leaf)) name = leaf
     } catch {
       // giữ tên mặc định
     }
