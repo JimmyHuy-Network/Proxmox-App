@@ -5,6 +5,7 @@ import type { DataNode } from 'antd/es/tree'
 import { useTranslation } from 'react-i18next'
 import { useClusterResources } from '../../hooks/useClusterResources'
 import { useSelection } from '../../stores/selection'
+import { NodeShellButton } from '../console/NodeShellButton'
 import { isGuest, type ClusterResource } from './types'
 
 type StatusBadge = 'success' | 'default' | 'error' | 'warning'
@@ -86,20 +87,30 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
       // Ẩn node khỏi kết quả tìm kiếm nếu không có gì khớp bên trong, trừ khi
       // đang không lọc gì cả.
       if (query.trim() !== '' && children.length === 0) continue
+      const nodeName = n.node ?? ''
       nodeEntries.push({
         key: n.id,
         selectable: false,
         title: (
-          <Flex align="center" gap={6}>
-            <Badge status={statusOf(n)} />
-            <Typography.Text strong>{n.node}</Typography.Text>
+          <Flex align="center" gap={6} justify="space-between" style={{ width: '100%', paddingInlineEnd: 4 }}>
+            <Flex align="center" gap={6}>
+              <Badge status={statusOf(n)} />
+              <Typography.Text strong>{nodeName}</Typography.Text>
+            </Flex>
+            <span
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              role="presentation"
+            >
+              <NodeShellButton connectionId={connectionId} node={nodeName} />
+            </span>
           </Flex>
         ),
         children,
       })
     }
     return nodeEntries
-  }, [resources, query, token])
+  }, [resources, query, token, connectionId])
 
   const allNodeKeys = useMemo(() => treeData.map((n) => n.key), [treeData])
 

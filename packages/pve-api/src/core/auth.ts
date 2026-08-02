@@ -17,12 +17,19 @@ export interface AuthProvider {
   /** Endpoint này có gọi được bằng cách xác thực hiện tại không. */
   supportsEndpoint(endpoint: EndpointRuntime): boolean
   /**
-   * Cookie phiên, dành cho relay console.
-   *
-   * WebSocket của console cần `PVEAuthCookie`; API Token không dùng được ở đó cho dù
-   * `allowToken` là true, vì bắt tay WebSocket không mang header Authorization.
+   * Cookie phiên (`PVEAuthCookie=…`), dành cho relay console khi dùng ticket.
+   * Token trả `null` — dùng `authorizationHeader()` thay thế.
    */
   sessionCookie(): string | null
+  /**
+   * Header `Authorization: PVEAPIToken=…` nếu đang dùng token; ticket trả `null`.
+   *
+   * PVE 9.2 cho phép API Token mở `/vncwebsocket` khi handshake mang header này
+   * (trình duyệt không đặt được — chỉ Node/`ws` trong main làm được).
+   */
+  authorizationHeader(): string | null
+  /** Tên người dùng (hoặc user@realm của token) — gửi trong handshake `user:ticket`. */
+  consoleUsername(): string
   /** Bỏ trạng thái đã xác thực, buộc lần gọi sau phải đăng nhập lại. */
   invalidate(): void
 }
@@ -42,9 +49,11 @@ export interface TokenCredentials {
 export class TokenAuthProvider implements AuthProvider {
   readonly kind = 'token' as const
   private readonly header: string
+  private readonly username: string
 
   constructor(credentials: TokenCredentials) {
     const { username, tokenId, tokenSecret } = credentials
+    this.username = username
     this.header = `PVEAPIToken=${username}!${tokenId}=${tokenSecret}`
   }
 
@@ -59,6 +68,14 @@ export class TokenAuthProvider implements AuthProvider {
 
   sessionCookie(): null {
     return null
+  }
+
+  authorizationHeader(): string {
+    return this.header
+  }
+
+  consoleUsername(): string {
+    return this.username
   }
 
   invalidate(): void {
@@ -143,6 +160,14 @@ export class TicketAuthProvider implements AuthProvider {
 
   sessionCookie(): string | null {
     return this.session ? `PVEAuthCookie=${encodeURIComponent(this.session.ticket)}` : null
+  }
+
+  authorizationHeader(): null {
+    return null
+  }
+
+  consoleUsername(): string {
+    return this.session?.username ?? this.credentials.username
   }
 
   invalidate(): void {

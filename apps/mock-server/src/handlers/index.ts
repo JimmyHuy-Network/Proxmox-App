@@ -40,6 +40,8 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     handlers[handlerKey(method, path)] = handler
   }
 
+  registerConsoleHandlers(on)
+
   // ── Xác thực ───────────────────────────────────────────────────────────────
 
   on('POST', '/access/ticket', ({ input }) => {
@@ -1133,6 +1135,119 @@ function bytesToSize(bytes: number): string {
   if (bytes >= 1024 ** 3) return `${Math.round((bytes / 1024 ** 3) * 10) / 10}G`
   if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)}M`
   return `${bytes}`
+}
+
+/** Proxy console: termproxy / vncproxy / vncshell / spiceproxy. */
+function registerConsoleHandlers(
+  on: (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, handler: MockHandler) => void,
+): void {
+  const proxyResponse = (
+    mock: MockContext,
+    auth: { username: string },
+    kind: 'term' | 'vnc',
+    target: { node: string; vmid?: number; vmtype?: 'qemu' | 'lxc'; title: string },
+  ): Record<string, unknown> => {
+    const entry = mock.consoleTickets.mint(kind, auth.username, target)
+    const result: Record<string, unknown> = {
+      port: entry.port,
+      ticket: entry.ticket,
+      upid: entry.upid,
+      user: entry.user,
+    }
+    if (kind === 'vnc') {
+      // cert PEM giả — client desktop không dùng (đi qua WS), nhưng schema có trường này.
+      result['cert'] =
+        '-----BEGIN CERTIFICATE-----\nMIIFakeCertForMockConsole\n-----END CERTIFICATE-----'
+      if (entry.password) result['password'] = entry.password
+    }
+    return result
+  }
+
+  const spiceResponse = (node: string, input: Record<string, unknown>): Record<string, unknown> => ({
+    type: 'spice',
+    host: node,
+    password: 'mock-spice-password',
+    proxy: typeof input['proxy'] === 'string' ? input['proxy'] : `http://${node}:3128`,
+    'tls-port': 61000,
+  })
+
+  // Node shell
+  on('POST', '/nodes/{node}/termproxy', ({ mock, auth, params }) =>
+    proxyResponse(mock, auth, 'term', {
+      node: params['node']!,
+      title: `${params['node']} — shell`,
+    }),
+  )
+  on('POST', '/nodes/{node}/vncshell', ({ mock, auth, params }) =>
+    proxyResponse(mock, auth, 'vnc', {
+      node: params['node']!,
+      title: `${params['node']} — VNC shell`,
+    }),
+  )
+  on('POST', '/nodes/{node}/spiceshell', ({ params, input }) =>
+    spiceResponse(params['node']!, input),
+  )
+
+  // QEMU
+  on('POST', '/nodes/{node}/qemu/{vmid}/termproxy', ({ mock, auth, params }) => {
+    const vmid = num(params['vmid'])
+    const guest = requireGuest(mock, params['node']!, vmid, 'qemu')
+    return proxyResponse(mock, auth, 'term', {
+      node: params['node']!,
+      vmid,
+      vmtype: 'qemu',
+      title: `${params['node']} — VM ${vmid} (${guest.name}) serial`,
+    })
+  })
+  on('POST', '/nodes/{node}/qemu/{vmid}/vncproxy', ({ mock, auth, params }) => {
+    const vmid = num(params['vmid'])
+    const guest = requireGuest(mock, params['node']!, vmid, 'qemu')
+    return proxyResponse(mock, auth, 'vnc', {
+      node: params['node']!,
+      vmid,
+      vmtype: 'qemu',
+      title: `${params['node']} — VM ${vmid} (${guest.name})`,
+    })
+  })
+  on('POST', '/nodes/{node}/qemu/{vmid}/spiceproxy', ({ mock, params, input }) => {
+    const vmid = num(params['vmid'])
+    requireGuest(mock, params['node']!, vmid, 'qemu')
+    return spiceResponse(params['node']!, input)
+  })
+
+  // LXC
+  on('POST', '/nodes/{node}/lxc/{vmid}/termproxy', ({ mock, auth, params }) => {
+    const vmid = num(params['vmid'])
+    const guest = requireGuest(mock, params['node']!, vmid, 'lxc')
+    return proxyResponse(mock, auth, 'term', {
+      node: params['node']!,
+      vmid,
+      vmtype: 'lxc',
+      title: `${params['node']} — CT ${vmid} (${guest.name})`,
+    })
+  })
+  on('POST', '/nodes/{node}/lxc/{vmid}/vncproxy', ({ mock, auth, params }) => {
+    const vmid = num(params['vmid'])
+    const guest = requireGuest(mock, params['node']!, vmid, 'lxc')
+    return proxyResponse(mock, auth, 'vnc', {
+      node: params['node']!,
+      vmid,
+      vmtype: 'lxc',
+      title: `${params['node']} — CT ${vmid} (${guest.name})`,
+    })
+  })
+  on('POST', '/nodes/{node}/lxc/{vmid}/spiceproxy', ({ mock, params, input }) => {
+    const vmid = num(params['vmid'])
+    requireGuest(mock, params['node']!, vmid, 'lxc')
+    return spiceResponse(params['node']!, input)
+  })
+
+  // GET vncwebsocket qua HTTP thường (không upgrade) — Proxmox trả object nhỏ.
+  // Upgrade thật được xử lý ở console/websocket.ts.
+  const vncWsOk = (): Record<string, unknown> => ({ port: 'ok' })
+  on('GET', '/nodes/{node}/vncwebsocket', vncWsOk)
+  on('GET', '/nodes/{node}/qemu/{vmid}/vncwebsocket', vncWsOk)
+  on('GET', '/nodes/{node}/lxc/{vmid}/vncwebsocket', vncWsOk)
 }
 
 function guestSummary(guest: MockGuest): Record<string, unknown> {

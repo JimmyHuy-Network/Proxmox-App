@@ -1,5 +1,10 @@
 import type { ConnectionInput, PveHttpMethod, TestConnectionResult } from '@pve/ipc'
-import { ManagedConnection, type ConnectionMeta, type EstablishResult } from './connection.ts'
+import {
+  ManagedConnection,
+  type ConnectionMeta,
+  type ConsoleEndpoint,
+  type EstablishResult,
+} from './connection.ts'
 import { probeCertificate } from './https-transport.ts'
 import type { Vault } from '../security/vault.ts'
 
@@ -103,6 +108,11 @@ export class ConnectionPool {
 
   sessionCookie(id: string): string | null {
     return this.connections.get(id)?.sessionCookie() ?? null
+  }
+
+  /** Host + TLS + auth headers để main mở WebSocket console thượng nguồn. */
+  consoleEndpoint(id: string): ConsoleEndpoint | null {
+    return this.connections.get(id)?.consoleEndpoint() ?? null
   }
 
   close(id: string): void {

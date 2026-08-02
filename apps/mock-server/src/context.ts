@@ -5,6 +5,7 @@ import type { PveHttpMethod } from '@pve/schema'
 import { TaskEngine } from './tasks/engine.ts'
 import { World, type MockWorld } from './state/world.ts'
 import { AuthStore } from './auth.ts'
+import { ConsoleTicketStore } from './console/tickets.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixturesDir = join(here, '..', 'fixtures')
@@ -46,6 +47,8 @@ export class MockContext {
   readonly world: World
   readonly tasks = new TaskEngine()
   readonly auth = new AuthStore()
+  /** Vé console (termproxy/vncproxy) — GĐ 5. */
+  readonly consoleTickets = new ConsoleTicketStore()
   /** ACL trong bộ nhớ — đủ cho tab quyền theo guest (GĐ 4); Access đầy đủ là GĐ 8. */
   acls: MockAcl[] = structuredClone(SEED_ACLS)
 
@@ -67,6 +70,7 @@ export class MockContext {
     this.world.reset()
     this.tasks.reset()
     this.auth.reset()
+    this.consoleTickets.reset()
     this.acls = structuredClone(SEED_ACLS)
     this.failures = []
   }
