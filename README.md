@@ -1,145 +1,248 @@
 # Proxmox VE Manager
 
-Ứng dụng desktop (Windows) quản lý Proxmox VE với mục tiêu đầy đủ tính năng như web UI gốc.
+Ứng dụng desktop (Electron) quản lý Proxmox VE — mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: hết giai đoạn 0–6** (Console + Storage). Bộ khung Electron, client **675 endpoint**,
-> mock (termproxy/vncproxy + fake RFB/shell + storage multipart), vault/TOFU/TFA, cây tài nguyên
-> + TaskDock + RRD, guest lifecycle GĐ 4, **console GĐ 5** (noVNC/xterm/shell/SPICE), **storage
-> GĐ 6** (content browser, upload stream qua main, vzdump + lịch backup, restore, CRUD/scan).
+> **Trạng thái: hết giai đoạn 0–6** (Console + Storage). Client **675 endpoint**, mock HTTPS,
+> vault/TOFU/TFA, cây tài nguyên + TaskDock + RRD, guest lifecycle, console (noVNC/xterm/SPICE),
+> storage (content browser, upload/download, vzdump, PBS file-restore).
 
-## Thử luồng đầy đủ
+Chi tiết bàn giao: [`docs/handoff.md`](docs/handoff.md) · kế hoạch: [`docs/plan.md`](docs/plan.md).
 
-Chạy mock server rồi mở app, vào tab **Kết nối** → **Thêm kết nối**:
+---
 
-```bash
-npm run dev:mock
-```
+## Yêu cầu
 
-Rồi trong app (một terminal khác `npm run dev`), thêm kết nối tới `127.0.0.1:8006`,
-tài khoản `root@pam`, mật khẩu bất kỳ (trừ `sai`). App sẽ hiện dialog xác nhận vân tay
-chứng chỉ tự ký — bấm tin tưởng — rồi cây tài nguyên bên trái hiện node/VM/container thật
-từ mock, cập nhật mỗi 3 giây. Bấm vào một guest để mở khung chi tiết: **Tổng quan**,
-**Console** (VNC / Terminal / SPICE), **Phần cứng**, **Snapshot**, Options, Cloud-Init,
-Quyền, Tác vụ. Tab Console nối thật tới mock qua `/vncproxy`+`/vncwebsocket` (noVNC) hoặc
-`/termproxy` (xterm.js). Nút **Shell** cạnh tên node mở shell node trong cửa sổ tách.
+| | |
+|---|---|
+| **Node.js** | **≥ 22.18** (khuyến nghị 22.19+). Mock chạy `node src/index.ts` nhờ type-stripping native; `undici` cần ≥ 22.19. |
+| **npm** | Đi kèm Node (repo dùng npm workspaces). |
+| **OS** | Dev trên Linux/macOS/Windows. Installer Windows qua `build:win`. |
+| **Display** | Electron cần display. Trên VM headless dùng `DISPLAY=:1` (hoặc Xvfb). |
 
-Trên VM headless (không có libsecret), dùng hook E2E để bỏ qua vault mã hoá:
+Kiểm tra phiên bản:
 
 ```bash
-DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
+node --version   # ví dụ v22.22.2
 ```
 
-Thử tài khoản `tfa@pve` để xem luồng nhập OTP (mã `123456`).
+---
 
-## Chạy thử
+## Cài đặt
 
 ```bash
 npm install
 ```
 
-Electron 43 **không còn tự tải binary** qua `postinstall` (họ đã bỏ install script), nên
-sau lần cài đầu tiên phải chạy thêm:
+`postinstall` tự sinh client typed từ `pve-9.2.schema.json` (không cần mạng).
+
+Electron 43 **không** tự tải binary qua `postinstall` — sau lần cài đầu chạy thêm:
 
 ```bash
 node node_modules/electron/install.js
 ```
 
-Sau đó:
+---
 
-```bash
-npm run dev
-```
+## Chạy mock Proxmox
 
-Vào mục **Console** ở thanh bên để mở shell giả lập. Gõ `help` để xem lệnh, và thử gõ
-tiếng Việt có dấu — đó chính là phép thử cho phần đóng khung UTF-8.
-
-## Máy chủ Proxmox giả lập
-
-Chưa có phần cứng thật thì đây là môi trường phát triển chính:
+Mock là môi trường phát triển chính khi chưa có cluster thật: HTTPS tự ký, **675 endpoint**
+theo schema PVE 9.2, fixture trong bộ nhớ.
 
 ```bash
 npm run dev:mock
 ```
 
-Nó chạy ở `https://127.0.0.1:8006` với chứng chỉ tự ký, phục vụ **toàn bộ 675 endpoint**
-lấy từ schema chính thức của Proxmox VE 9.2.
+Mặc định: `https://127.0.0.1:8006`, fixture `cluster-3node` (pve1/pve2/pve3 + VM/CT).
+
+### Tuỳ chọn CLI
+
+```bash
+# Từ thư mục apps/mock-server
+npm run dev -- --port 8006 --fixture cluster-3node
+npm run dev -- --fixture huge --quiet
+```
+
+| Flag | Mặc định | Ý nghĩa |
+|---|---|---|
+| `--port` | `8006` | Cổng HTTPS |
+| `--fixture` | `cluster-3node` | Kịch bản seed |
+| `--quiet` | off | Tắt log Fastify |
+
+| Fixture | Nội dung |
+|---|---|
+| `cluster-3node` | 3 node, vài guest, storage local/NFS/PBS — dùng hàng ngày |
+| `huge` | 8 node / ~400 guest — smoke cây tài nguyên / tìm kiếm |
+
+Đổi fixture khi server đang chạy:
+
+```bash
+curl -k -X POST https://127.0.0.1:8006/__mock/fixture/huge
+curl -k https://127.0.0.1:8006/__mock/fixtures
+```
+
+### Đăng nhập mock
 
 | | |
 |---|---|
-| Đăng nhập | Tên bất kỳ, mật khẩu bất kỳ **trừ** chuỗi `sai` |
-| Tài khoản có 2FA | `tfa@pve`, mã OTP giả lập `123456` |
+| Ticket | User bất kỳ, mật khẩu bất kỳ **trừ** chuỗi `sai` |
+| TFA | User `tfa@pve`, OTP giả lập `123456` |
 | API Token | `root@pam!automation=00000000-1111-2222-3333-444444444444` |
 
-Endpoint nào chưa có hành vi thật vẫn trả lời đúng hình dạng `returns` nhờ bộ sinh tự
-động, nên dựng được giao diện cho Ceph hay HA từ trước khi viết logic cho chúng.
-
-API điều khiển (ngoài `/api2`, chỉ dành cho phát triển):
+### API điều khiển (chỉ dev)
 
 ```bash
-curl -k -X POST https://127.0.0.1:8006/__mock/node/pve2/offline -H 'Content-Type: application/json' -d '{"offline":true}'
+# Node offline
+curl -k -X POST https://127.0.0.1:8006/__mock/node/pve2/offline \
+  -H 'Content-Type: application/json' -d '{"offline":true}'
+
+# Reset state / tiêm latency / ép lỗi
+curl -k -X POST https://127.0.0.1:8006/__mock/reset
+curl -k -X POST https://127.0.0.1:8006/__mock/latency \
+  -H 'Content-Type: application/json' -d '{"ms":200,"jitter":50}'
 ```
 
-Còn có `/__mock/reset`, `/__mock/latency`, `/__mock/fail`, `/__mock/state`. Đây là cách
-dựng giao diện cho các trạng thái hỏng hóc khi không có cụm máy thật để phá.
+Còn `/__mock/fail`, `/__mock/state` — dựng UI cho trạng thái hỏng khi không có cụm thật.
 
-## Các lệnh khác
+Sinh lại fixture `huge` (khi chỉnh cấu trúc):
 
-| Lệnh | Tác dụng |
-|---|---|
-| `npm run dev` | Chạy app ở chế độ phát triển, có HMR cho renderer |
-| `npm run dev:mock` | Chạy máy chủ Proxmox giả lập |
-| `npm test` | Chạy toàn bộ test (121 bài) |
-| `npm run typecheck` | Kiểm tra kiểu cho cả main/preload và renderer |
-| `npm run build:win` | Đóng gói installer NSIS vào `apps/desktop/release/` |
-| `npm run lint` | Kiểm tra mã nguồn |
-| `npm run schema:fetch` | Tải lại `apidoc.js` từ Proxmox |
-| `npm run schema:generate` | Sinh lại client có kiểu từ schema |
+```bash
+node apps/mock-server/scripts/generate-huge.mjs
+```
 
-Kiểm tra nhanh xem app có khởi động sạch không (dùng được trong CI):
+---
+
+## Chạy app (dev)
+
+Terminal 1 — mock:
+
+```bash
+npm run dev:mock
+```
+
+Terminal 2 — desktop:
+
+```bash
+npm run dev
+```
+
+Trong app: **Kết nối** → **Thêm kết nối** → host `127.0.0.1`, port `8006`, user `root@pam`,
+mật khẩu bất kỳ (trừ `sai`). Tin tưởng chứng chỉ tự ký (TOFU) → cây Datacenter/node/guest hiện.
+
+### Headless / không có libsecret
+
+Trên VM không có OS keyring, UI “Thêm kết nối” không mã hoá được credential. Dùng hook E2E
+(seed vault plaintext + tự kết nối mock):
+
+```bash
+DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
+```
+
+Tuỳ chọn: `PVE_E2E_USER` (mặc định `root@pam`), `PVE_E2E_PASSWORD` (mặc định `x`).
+
+### Smoke khởi động (CI)
 
 ```bash
 cd apps/desktop && PVE_SMOKE_TEST=1 npx electron .
 ```
 
-Lệnh này nạp renderer, thu mọi cảnh báo và lỗi của console — bao gồm vi phạm CSP —
-rồi thoát với mã 0 nếu sạch, mã 1 nếu có vấn đề.
+Nạp renderer, thu cảnh báo/lỗi console (kể cả CSP), thoát 0 nếu sạch.
+
+---
+
+## Build
+
+### Build app (main + preload + renderer)
+
+```bash
+npm run build
+```
+
+Ra thư mục `apps/desktop/out/` (chưa đóng gói installer).
+
+Chỉ typecheck:
+
+```bash
+npm run typecheck
+```
+
+### Build Windows installer (`build:win`)
+
+```bash
+npm run build:win
+```
+
+Chạy `electron-vite build` rồi `electron-builder --win` (target NSIS x64).
+
+| Đầu ra | Đường dẫn |
+|---|---|
+| Thư mục giải nén | `apps/desktop/release/win-unpacked/` |
+| Binary | `apps/desktop/release/win-unpacked/Proxmox VE Manager.exe` |
+| Installer NSIS | `apps/desktop/release/Proxmox VE Manager-0.1.0-x64.exe` |
+
+**Lưu ý trên Linux:** bước đóng gói `win-unpacked` chạy được; **NSIS cần `wine`**.
+Không có wine thì có `.exe` trong `win-unpacked` nhưng installer NSIS có thể thất bại.
+Trên Windows native thì `build:win` ra đủ installer.
+
+Chỉ đóng gói thư mục (không NSIS):
+
+```bash
+npm run build:unpack --workspace=@pve/desktop
+```
+
+Installer **chưa ký số** — SmartScreen sẽ cảnh báo khi cài.
+
+---
+
+## Kiểm thử & chất lượng
+
+```bash
+npm test              # vitest toàn monorepo
+npm run typecheck
+npm run lint
+```
+
+---
+
+## Bảng lệnh gốc
+
+| Lệnh | Tác dụng |
+|---|---|
+| `npm run dev` | App Electron + Vite HMR (renderer `:5173`) |
+| `npm run dev:mock` | Mock PVE HTTPS `:8006` |
+| `npm run build` | Build production vào `apps/desktop/out/` |
+| `npm run build:win` | Build + electron-builder Windows (NSIS) |
+| `npm test` | Toàn bộ test |
+| `npm run typecheck` | `tsc` main/preload + renderer |
+| `npm run lint` | ESLint |
+| `npm run schema:fetch` | Tải lại `apidoc.js` từ Proxmox |
+| `npm run schema:generate` | Sinh lại client typed từ schema |
+
+---
 
 ## Cấu trúc
 
 ```
-packages/pve-ipc/        Hợp đồng IPC dùng chung, chỉ type
-apps/desktop/src/main/   Tiến trình main: mạng, credential, relay console
-apps/desktop/src/preload Cầu contextBridge, cố ý giữ mỏng
-apps/desktop/src/renderer Giao diện React, chạy sandbox không có Node
-apps/desktop/src/shared/ Mã dùng chung giữa main và renderer
+packages/pve-schema/     Schema PVE 9.2 đã chuẩn hoá
+packages/pve-api/        Client typed + auth/transport
+packages/pve-ipc/        Hợp đồng IPC (chỉ type)
+apps/mock-server/        Mock HTTPS + fixture + /__mock/*
+apps/desktop/src/main/   Main: mạng, vault, relay console, transfer
+apps/desktop/src/preload contextBridge (mỏng)
+apps/desktop/src/renderer React UI (sandbox, không Node)
 ```
 
-## Vài quyết định đã chốt và lý do
+---
 
-**Toàn bộ mạng đi qua main process.** Proxmox API không gửi CORS header, nhưng trong
-Electron điều đó không thành vấn đề vì main gọi thẳng bằng Node. Quan trọng hơn:
-renderer không bao giờ thấy credential, ticket, hay địa chỉ host — nó chỉ cầm một
-`connectionId` dạng opaque. CSP cố ý **không** cho phép renderer kết nối tới host
-Proxmox; nếu thấy vi phạm CSP ở `connect-src` thì đó là dấu hiệu có code đang đi tắt.
+## Quyết định kỹ thuật (tóm tắt)
 
-**Console dùng relay trong main, không nối thẳng từ renderer.** Endpoint `/termproxy`
-của Proxmox kiểm tra header `Referer`, mà Chromium không cho đặt header trên WebSocket
-handshake. Thêm nữa cookie jar của Electron ghi đè header `Cookie`, và với nhiều cluster
-thì các jar đụng nhau vì cùng tên `PVEAuthCookie`. Relay trong main giải quyết cả ba,
-và noVNC nhận thẳng đối tượng `WebSocket` đang sống nên không bao giờ tự dựng URL.
+**Mọi mạng qua main.** Renderer không thấy credential/ticket/host — chỉ `connectionId`.
+CSP không cho `connect-src` tới host Proxmox.
 
-**Ghim Vite 7, không lên 8.** `electron-vite@5` chỉ nhận `vite ^5 || ^6 || ^7`. Ngoài ra
-Vite 8 dùng Rolldown, vốn từ chối top-level `await` trong `@novnc/novnc`.
+**Console qua relay trong main.** `/termproxy` kiểm `Referer`; Chromium không set được trên
+WebSocket; cookie jar Electron đụng nhau giữa cluster. Relay giải cả ba; noVNC nhận
+`WebSocket` đã sống.
 
-**Không dùng `@xterm/addon-attach`.** Giao thức termproxy bất đối xứng: chiều gửi phải
-đóng khung `0:<số byte>:<dữ liệu>`, chiều nhận là byte thô. Addon nối thô cả hai chiều
-nên làm hỏng chiều gửi. Xem `src/shared/term-protocol.ts`.
+**Ghim Vite 7** (`electron-vite@5` + tương thích `@novnc/novnc`).
 
-**Số byte trong khung là byte UTF-8, không phải `String.length`.** Nhầm chỗ này thì gõ
-tiếng Việt có dấu sẽ vỡ ký tự. Đây là lý do có bộ test riêng cho phần này.
-
-## Chưa làm
-
-- Kết nối Proxmox thật (giai đoạn 1–2)
-- Chưa ký số installer, nên Windows SmartScreen sẽ cảnh báo khi cài
-- Chưa có icon riêng, đang dùng icon mặc định của Electron
+**Không dùng `@xterm/addon-attach`.** Termproxy bất đối xứng (`0:<bytes>:<data>` chiều gửi).
+Xem `term-protocol` — số byte là UTF-8 bytes, không phải `String.length`.
