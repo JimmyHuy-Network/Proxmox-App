@@ -143,7 +143,10 @@ Không worth tạo package riêng chỉ để share ~300 dòng.
 - VNC clipboard paste + quality slider.
 - Form thêm storage đủ loại (cifs/iscsi/lvm/lvmthin/zfspool/rbd/cephfs/pbs…).
 - PBS file-restore list/download UI; nút tải volume local qua `pve:transfer`.
-- `build:win` cấu hình sẵn trong `electron-builder.yml` (ký số vẫn để sau).
+- `build:win`: đã verify trên Linux — `electron-builder --win` đóng gói được
+  `release/win-unpacked/Proxmox VE Manager.exe` (~216 MB). Bước NSIS cần `wine`
+  (chưa có trên VM này) nên installer `.exe` đầy đủ chỉ build được trên Windows
+  hoặc máy có wine. Ký số vẫn để sau.
 
 ### Giai đoạn 7 — hạ tầng node & cluster (plan §6)
 
