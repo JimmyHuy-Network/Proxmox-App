@@ -23,8 +23,8 @@ win:
       arch:
         - x64
   artifactName: ${productName}-${version}-${arch}.${ext}
-  # Chưa ký số. SmartScreen sẽ cảnh báo khi cài — xem mục rủi ro 6 trong kế hoạch,
-  # cần quyết định chứng chỉ EV hay OV trước khi phát hành ra ngoài.
+  # Ký số: xem docs/decision-windows-signing.md. Đặt CSC_LINK + CSC_KEY_PASSWORD khi có cert.
+  # icon: resources/icon.ico (tuỳ chọn — thiếu thì electron-builder dùng mặc định)
 
 nsis:
   oneClick: false
@@ -35,4 +35,9 @@ nsis:
   shortcutName: Proxmox VE Manager
   deleteAppDataOnUninstall: false
 
+# Auto-update (electron-updater): bỏ comment và chọn provider khi phát hành.
+# publish:
+#   provider: github
+#   owner: phamhuyti
+#   repo: Proxmox-App
 publish: null

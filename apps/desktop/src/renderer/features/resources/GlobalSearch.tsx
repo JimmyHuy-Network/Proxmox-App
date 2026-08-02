@@ -73,6 +73,7 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
         prefix={<SearchOutlined />}
         placeholder={t('nav.globalSearch')}
         aria-label={t('nav.globalSearch')}
+        data-global-search
       />
     </AutoComplete>
   )

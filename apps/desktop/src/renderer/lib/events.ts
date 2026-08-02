@@ -2,6 +2,7 @@ import { useConnections } from '../stores/connections'
 import { useResources } from '../stores/resources'
 import { useTasks } from '../stores/tasks'
 import { useTransfers } from '../stores/transfers'
+import { useUpdate } from '../stores/update'
 
 /**
  * Điểm nhận duy nhất cho kênh `pve:event` đa hợp từ main.
@@ -40,6 +41,10 @@ export function subscribePveEvents(): () => void {
 
       case 'transfer':
         useTransfers.getState().apply(event)
+        break
+
+      case 'update':
+        useUpdate.getState().setStatus(event.status)
         break
 
       // 'cert-untrusted' và 'console-closed' được xử lý tại chỗ bởi luồng gọi

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge, Divider, Dropdown, Layout, Menu, Space, Typography, theme } from 'antd'
 import {
   ApiOutlined,
@@ -10,6 +10,7 @@ import {
   TeamOutlined,
   ApartmentOutlined,
   FireOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +23,9 @@ import { TaskDock } from '../features/tasks/TaskDock'
 import { GuestDrawer } from '../features/resources/GuestDrawer'
 import { StorageDrawer } from '../features/storage/StorageDrawer'
 import { NodeDrawer } from '../features/node/NodeDrawer'
+import { useAppShortcuts } from '../hooks/useAppShortcuts'
+import { AboutModal } from '../features/settings/AboutModal'
+import { ShortcutsModal } from '../features/settings/ShortcutsModal'
 
 const { Sider, Header, Content, Footer } = Layout
 
@@ -83,6 +87,9 @@ export function AppLayout(): React.JSX.Element {
   const activeId = useConnections((s) => s.activeId)
   const activePhase = useConnections((s) => (s.activeId ? s.phases[s.activeId] : undefined))
   const connected = activeId !== null && activePhase === 'authenticated'
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [appVersion, setAppVersion] = useState<{ app?: string; electron?: string } | null>(null)
 
   // Nạp danh sách kết nối và lắng nghe mọi sự kiện đẩy từ main (auth, resources, task).
   useEffect(() => {
@@ -90,6 +97,17 @@ export function AppLayout(): React.JSX.Element {
     const unsubscribe = subscribePveEvents()
     return unsubscribe
   }, [refresh])
+
+  useEffect(() => {
+    void window.pve.app.getVersion().then((res) => {
+      if (res.ok && res.data) setAppVersion(res.data)
+    })
+  }, [])
+
+  useAppShortcuts({
+    onAbout: () => setAboutOpen(true),
+    onShortcutsHelp: () => setShortcutsOpen(true),
+  })
 
   // Cửa sổ console tách — chỉ cần nội dung, không sider/header/dock.
   if (pathname.startsWith('/console/session')) {
@@ -184,6 +202,11 @@ export function AppLayout(): React.JSX.Element {
                 icon: <ApartmentOutlined />,
                 label: <Link to="/datacenter">{t('nav.datacenter')}</Link>,
               },
+              {
+                key: '/settings',
+                icon: <SettingOutlined />,
+                label: <Link to="/settings">{t('nav.settings')}</Link>,
+              },
             ]}
           />
 
@@ -217,6 +240,8 @@ export function AppLayout(): React.JSX.Element {
       <GuestDrawer />
       <StorageDrawer />
       <NodeDrawer />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} version={appVersion} />
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </Layout>
   )
 }

@@ -2,11 +2,13 @@
 
 Ứng dụng desktop (Electron) quản lý Proxmox VE — mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: hết giai đoạn 7** (hạ tầng node & cluster). Giai đoạn 0–6 đã merge. Client
-> **675 endpoint**, mock HTTPS (kèm `broken-cluster`), vault/TOFU/TFA, guest/console/storage,
-> NodeDrawer (network/disks/apt/certs/logs/ceph), trang Cluster create/join.
+> **Trạng thái: hết giai đoạn 9** (hardening & phát hành MVP). Giai đoạn 0–8 đã merge — Access /
+> Firewall / SDN / HA / replication / notify / metrics + cap UI. GĐ 9 thêm auto-update wiring,
+> logging/crash hooks, phím tắt, Settings/i18n, tài liệu ký số & nested PVE.
 
-Chi tiết bàn giao: [`docs/handoff.md`](docs/handoff.md) · kế hoạch: [`docs/plan.md`](docs/plan.md).
+Chi tiết bàn giao: [`docs/handoff.md`](docs/handoff.md) · kế hoạch: [`docs/plan.md`](docs/plan.md) ·
+ký số: [`docs/decision-windows-signing.md`](docs/decision-windows-signing.md) · PVE lab:
+[`docs/nested-pve-hyperv.md`](docs/nested-pve-hyperv.md).
 
 ---
 

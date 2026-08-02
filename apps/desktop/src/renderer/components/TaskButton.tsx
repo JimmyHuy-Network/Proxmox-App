@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { App, Button, Popconfirm, Tooltip, type ButtonProps } from 'antd'
+import { useTranslation } from 'react-i18next'
 import { isUpid } from '@pve/api'
 import type { PveHttpMethod } from '@pve/ipc'
 import { pveRequest } from '../lib/pve'
@@ -47,6 +48,7 @@ export function TaskButton({
   denyReason?: string
   onDone?: (ok: boolean) => void
 }): React.JSX.Element {
+  const { t } = useTranslation()
   const { message } = App.useApp()
   const [upid, setUpid] = useState<string | null>(null)
   const task = useTask(upid)
@@ -94,6 +96,8 @@ export function TaskButton({
       icon={icon}
       loading={sending || running}
       disabled={disabled || blocked}
+      aria-disabled={disabled || blocked}
+      aria-label={label}
       onClick={confirmMessage || blocked ? undefined : () => void handleClick()}
     >
       {label}
@@ -112,7 +116,12 @@ export function TaskButton({
   if (!confirmMessage || blocked) return maybeTooltip
 
   return (
-    <Popconfirm title={confirmMessage} onConfirm={() => void handleClick()} okText="Đồng ý" cancelText="Huỷ">
+    <Popconfirm
+      title={confirmMessage}
+      onConfirm={() => void handleClick()}
+      okText={t('common.ok')}
+      cancelText={t('common.cancel')}
+    >
       {button}
     </Popconfirm>
   )

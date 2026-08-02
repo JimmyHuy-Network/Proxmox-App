@@ -69,6 +69,22 @@ export interface ConsoleEvent extends ConsoleClosedEvent {
   kind: 'console-closed'
 }
 
+/** Trạng thái auto-update (GĐ 9) — đẩy từ main khi electron-updater đổi pha. */
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; version: string }
+  | { state: 'not-available'; version: string }
+  | { state: 'downloading'; percent: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; message: string }
+  | { state: 'disabled'; reason: string }
+
+export interface UpdateEvent {
+  kind: 'update'
+  status: UpdateStatus
+}
+
 /** Mọi thứ main đẩy sang renderer đều đi qua một kênh duy nhất, phân biệt bằng `kind`. */
 export type PveEvent =
   | AuthEvent
@@ -78,3 +94,4 @@ export type PveEvent =
   | LogChunkEvent
   | ConsoleEvent
   | TransferEvent
+  | UpdateEvent

@@ -1,7 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { App as AntApp, ConfigProvider, theme } from 'antd'
-import viVN from 'antd/locale/vi_VN'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { antdLocaleFor, readStoredLanguage } from '../i18n/locale'
+import type { SupportedLanguage } from '../i18n'
+import i18n from '../i18n'
 
 function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -29,11 +31,22 @@ function createQueryClient(): QueryClient {
 
 export function Providers({ children }: { children: ReactNode }): React.JSX.Element {
   const [queryClient] = useState(createQueryClient)
+  const [lang, setLang] = useState<SupportedLanguage>(() => readStoredLanguage())
+
+  useEffect(() => {
+    if (i18n.language !== lang) void i18n.changeLanguage(lang)
+    const onLocale = (event: Event): void => {
+      const detail = (event as CustomEvent<SupportedLanguage>).detail
+      if (detail === 'en' || detail === 'vi') setLang(detail)
+    }
+    window.addEventListener('pve:locale', onLocale)
+    return () => window.removeEventListener('pve:locale', onLocale)
+  }, [lang])
 
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
-        locale={viVN}
+        locale={antdLocaleFor(lang)}
         componentSize="small"
         theme={{
           algorithm: [theme.darkAlgorithm, theme.compactAlgorithm],
