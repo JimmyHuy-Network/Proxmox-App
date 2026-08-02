@@ -4,6 +4,7 @@ import { failingVariant, templateFor } from '../tasks/engine.ts'
 import { synthRrd } from '../rrd.ts'
 import type { MockContext } from '../context.ts'
 import type { GuestType, MockGuest, MockSnapshot } from '../state/world.ts'
+import { applyStorageHandlers } from './storage.ts'
 
 /**
  * Hành vi thật cho những endpoint quan trọng nhất.
@@ -859,50 +860,8 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     }
   }
 
-  // ── Storage ────────────────────────────────────────────────────────────────
-
-  on('GET', '/storage', ({ mock }) =>
-    mock.world.current.storages.map((s) => ({
-      storage: s.storage,
-      type: s.type,
-      content: s.content,
-      shared: s.shared ? 1 : 0,
-      ...(s.nodes ? { nodes: s.nodes } : {}),
-    })),
-  )
-
-  on('GET', '/nodes/{node}/storage', ({ mock }) =>
-    mock.world.current.storages.map((s) => ({
-      storage: s.storage,
-      type: s.type,
-      content: s.content,
-      shared: s.shared ? 1 : 0,
-      enabled: s.enabled ? 1 : 0,
-      active: s.enabled ? 1 : 0,
-      total: s.total,
-      used: s.used,
-      avail: s.avail,
-      used_fraction: Number((s.used / s.total).toFixed(4)),
-    })),
-  )
-
-  on('GET', '/nodes/{node}/storage/{storage}/content', ({ input, mock }) => {
-    const storage = mock.world.storage(String(input['storage']))
-    if (!storage) throw new HttpError(500, 'storage does not exist')
-
-    const content = input['content']
-    return storage.contents
-      .filter((v) => (typeof content === 'string' ? v.content === content : true))
-      .map((v) => ({
-        volid: v.volid,
-        format: v.format,
-        size: v.size,
-        content: v.content,
-        ctime: v.ctime,
-        ...(v.vmid ? { vmid: v.vmid } : {}),
-        ...(v.notes ? { notes: v.notes } : {}),
-      }))
-  })
+  // ── Storage (giai đoạn 6) ──────────────────────────────────────────────────
+  applyStorageHandlers(handlers)
 
   return handlers
 }

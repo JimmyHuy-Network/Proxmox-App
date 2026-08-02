@@ -105,6 +105,13 @@ export class ConnectionPool {
     return this.connections.get(id)?.sessionCookie() ?? null
   }
 
+  /** Kết nối đã xác thực — dùng cho upload multipart / download stream. */
+  getAuthenticated(id: string): ManagedConnection | null {
+    const conn = this.connections.get(id)
+    if (!conn || conn.getPhase() !== 'authenticated') return null
+    return conn
+  }
+
   close(id: string): void {
     this.connections.get(id)?.close()
     this.connections.delete(id)

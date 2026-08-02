@@ -9,6 +9,8 @@ import type {
   PveHttpMethod,
   PveResponse,
   TestConnectionResult,
+  TransferDownloadRequest,
+  TransferUploadRequest,
 } from '@pve/ipc'
 
 type VaultReply<T> = { ok: true; data: T } | { ok: false; message: string }
@@ -113,6 +115,25 @@ const api = {
     },
     close(sessionId: string): Promise<unknown> {
       return ipcRenderer.invoke(IpcChannel.Console, { action: 'close', sessionId })
+    },
+  },
+
+  /**
+   * Upload/download stream qua main. Tiến trình tới qua `onEvent` kind `transfer`.
+   */
+  transfer: {
+    upload(
+      request: TransferUploadRequest,
+    ): Promise<{ ok: true; data: { transferId: string } } | { ok: false; message: string }> {
+      return ipcRenderer.invoke(IpcChannel.Transfer, { action: 'upload', request })
+    },
+    download(
+      request: TransferDownloadRequest,
+    ): Promise<{ ok: true; data: { transferId: string } } | { ok: false; message: string }> {
+      return ipcRenderer.invoke(IpcChannel.Transfer, { action: 'download', request })
+    },
+    cancel(transferId: string): Promise<unknown> {
+      return ipcRenderer.invoke(IpcChannel.Transfer, { action: 'cancel', transferId })
     },
   },
 

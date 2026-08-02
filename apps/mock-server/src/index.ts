@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
+import multipart from '@fastify/multipart'
 import { ensureTls } from './tls.ts'
 import { MockContext, FIXTURES, type FixtureName } from './context.ts'
 import { registerSchemaRoutes } from './router.ts'
@@ -51,6 +52,36 @@ export async function startMockServer(options: StartOptions = {}) {
       }
     },
   )
+
+  // Upload ISO/vztmpl của Proxmox dùng multipart/form-data. Chuyển thành object
+  // phẳng trước khi schema-router kiểm tham số (content, filename bắt buộc).
+  await app.register(multipart, {
+    limits: { fileSize: 64 * 1024 * 1024, files: 1 },
+  })
+
+  app.addHook('preValidation', async (request) => {
+    if (!request.isMultipart()) return
+
+    const body: Record<string, unknown> = {}
+    let uploadSize = 0
+    let uploadFilename: string | undefined
+
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        uploadFilename = part.filename || uploadFilename
+        if (!body['filename'] && part.filename) body['filename'] = part.filename
+        for await (const chunk of part.file) {
+          uploadSize += chunk.length
+        }
+      } else {
+        body[part.fieldname] = part.value
+      }
+    }
+
+    body['__uploadSize'] = uploadSize
+    if (uploadFilename) body['__uploadFilename'] = uploadFilename
+    request.body = body
+  })
 
   // Proxmox không gửi CORS header, và ứng dụng desktop không cần chúng vì mọi
   // request đi từ tiến trình main. Giữ đúng như vậy để mock không dễ dãi hơn thật.

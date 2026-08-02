@@ -9,6 +9,7 @@ import { subscribePveEvents } from '../lib/events'
 import { ResourceTree } from '../features/resources/ResourceTree'
 import { TaskDock } from '../features/tasks/TaskDock'
 import { GuestDrawer } from '../features/resources/GuestDrawer'
+import { StorageDrawer } from '../features/storage/StorageDrawer'
 
 const { Sider, Header, Content, Footer } = Layout
 
@@ -165,6 +166,7 @@ export function AppLayout(): React.JSX.Element {
       </Layout>
 
       <GuestDrawer />
+      <StorageDrawer />
     </Layout>
   )
 }

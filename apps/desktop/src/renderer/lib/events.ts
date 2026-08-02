@@ -1,6 +1,7 @@
 import { useConnections } from '../stores/connections'
 import { useResources } from '../stores/resources'
 import { useTasks } from '../stores/tasks'
+import { useTransfers } from '../stores/transfers'
 
 /**
  * Điểm nhận duy nhất cho kênh `pve:event` đa hợp từ main.
@@ -35,6 +36,10 @@ export function subscribePveEvents(): () => void {
 
       case 'log-chunk':
         useTasks.getState().appendLog(event.connectionId, event.upid, event.lines)
+        break
+
+      case 'transfer':
+        useTransfers.getState().apply(event)
         break
 
       // 'cert-untrusted' và 'console-closed' được xử lý tại chỗ bởi luồng gọi

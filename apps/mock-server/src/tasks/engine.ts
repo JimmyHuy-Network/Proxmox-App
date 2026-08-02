@@ -216,6 +216,22 @@ export const TASK_TEMPLATES: Record<string, TaskStep[]> = {
     { atMs: 15000, done: 'OK' },
   ],
   imgdel: [{ atMs: 800, done: 'OK' }],
+  imgcopy: [
+    { atMs: 200, log: 'INFO: nhận file upload' },
+    { atMs: 800, log: 'INFO: ghi vào storage' },
+    { atMs: 1200, done: 'OK' },
+  ],
+  imgalloc: [
+    { atMs: 300, log: 'INFO: cấp phát đĩa' },
+    { atMs: 900, done: 'OK' },
+  ],
+  download: [
+    { atMs: 400, log: 'INFO: bắt đầu tải từ URL' },
+    { atMs: 1500, log: 'INFO: tiến trình 40%' },
+    { atMs: 3000, log: 'INFO: tiến trình 80%' },
+    { atMs: 4000, log: 'INFO: tải xong' },
+    { atMs: 4200, done: 'OK' },
+  ],
   qmsnapshot: [
     { atMs: 600, log: 'tạo ảnh chụp' },
     { atMs: 1500, done: 'OK' },

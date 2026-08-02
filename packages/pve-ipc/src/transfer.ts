@@ -1,0 +1,52 @@
+/**
+ * Chuyển file lớn (upload ISO/vztmpl, tải về) — stream qua main, không qua renderer.
+ *
+ * Renderer chỉ chọn tham số (node/storage/content) và theo dõi tiến trình qua
+ * sự kiện `transfer`. Đường dẫn file thật chỉ tồn tại trong main (dialog).
+ */
+
+export type TransferKind = 'upload' | 'download'
+
+export type TransferPhase = 'started' | 'progress' | 'done' | 'error' | 'cancelled'
+
+export interface TransferUploadRequest {
+  connectionId: string
+  node: string
+  storage: string
+  /** iso | vztmpl | import */
+  content: string
+  /**
+   * Đường dẫn tuyệt đối trên máy local. Nếu bỏ trống, main mở hộp thoại chọn file.
+   * (E2E / test có thể truyền sẵn.)
+   */
+  filePath?: string
+  /** Ghi đè tên file trên storage; mặc định lấy basename của file local. */
+  filename?: string
+}
+
+export interface TransferDownloadRequest {
+  connectionId: string
+  node: string
+  storage: string
+  /** Volid đầy đủ, ví dụ `local:iso/debian.iso`. */
+  volume: string
+  /** Đường dẫn lưu; bỏ trống → hộp thoại Save. */
+  savePath?: string
+}
+
+export interface TransferStartResult {
+  transferId: string
+}
+
+export interface TransferEvent {
+  kind: 'transfer'
+  transferId: string
+  connectionId: string
+  transferKind: TransferKind
+  phase: TransferPhase
+  bytesSent?: number
+  totalBytes?: number
+  /** UPID nếu server trả về sau khi upload xong. */
+  upid?: string
+  message?: string
+}

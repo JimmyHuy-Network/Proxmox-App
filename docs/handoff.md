@@ -1,4 +1,4 @@
-# Bàn giao — hết giai đoạn 4
+# Bàn giao — hết giai đoạn 6
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
@@ -10,9 +10,10 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0–4 hoàn tất.** Quản lý VM/LXC theo plan §6 GĐ 4: Hardware đầy đủ, Options,
-Cloud-Init, wizard VM/CT, snapshot lồng nhau, clone/migrate/resize/move-disk, template,
-ACL/task theo guest, E2E lifecycle. 202+ test đạt, typecheck và lint sạch.
+**Giai đoạn 0–4 và 6 hoàn tất trên nhánh này** (GĐ 5 Console vẫn ở PR riêng
+`cursor/phase5-console-8cea` nếu chưa merge). Storage theo plan §6 GĐ 6: content browser,
+upload/download stream qua main, vzdump + lịch backup, restore wizard, CRUD storage + scan,
+PBS fixture cơ bản.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -45,11 +46,18 @@ ACL/task theo guest, E2E lifecycle. 202+ test đạt, typecheck và lint sạch.
 | **Cây snapshot** (`parent`) + clone-from-snapshot | Xong |
 | **Tab Quyền (ACL)** + **tab Tác vụ** theo guest | Xong |
 | **Destroy guest** + lifecycle E2E (API + Playwright `_electron`) | Xong |
+| **Storage drawer** (overview/content/backup jobs) + chọn storage trên cây | Xong, GĐ 6 |
+| **Upload multipart stream qua main** + tiến trình/huỷ (`pve:transfer`) | Xong, GĐ 6 |
+| **download-url / vzdump / prune / restore** | Xong, GĐ 6 |
+| **Backup jobs CRUD** (`/cluster/backup`) + not-backed-up | Xong, GĐ 6 |
+| **Storage CRUD + scan NFS/PBS/…** | Xong, GĐ 6 |
+| **Mock** multipart upload, Fake volumes, nfs-backup + pbs-lab fixture | Xong, GĐ 6 |
 
 Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
 đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
 
-**Giai đoạn 4 đóng.** Việc tiếp theo là **giai đoạn 5 — Console** (xem mục 6).
+**Giai đoạn 6 đóng trên nhánh này.** Việc tiếp theo: merge GĐ 5 (Console) nếu chưa, rồi
+**giai đoạn 7 — hạ tầng node & cluster** (xem mục 6).
 
 ### Kiểm chứng lại toàn bộ
 
@@ -340,33 +348,42 @@ hoàn toàn. Có test riêng.
 
 ---
 
-## 6. Việc tiếp theo — giai đoạn 5 (Console)
+## 6. Việc tiếp theo — giai đoạn 7 (và GĐ 5 nếu chưa merge)
 
-**Giai đoạn 4 đã đóng** theo plan.md §6. Tóm tắt phần hoàn tất cuối GĐ 4:
+### Giai đoạn 6 đã đóng (nhánh này)
 
-1. Convert template (QEMU UPID `qmtemplate` / LXC sync `null`); cấm start template.
-2. `move_disk` / `move_volume` UI + mock (đổi storage, `unusedN` khi không delete).
-3. Tab Cloud-Init (QEMU): ciuser/ipconfig0/sshkeys + regenerate drive.
-4. Snapshot cây theo `parent`; clone modal chọn `snapname`.
-5. Tab Quyền (`/access/acl` lọc `/vms/{vmid}`) + tab Tác vụ (`tasks?vmid=`).
-6. Destroy guest; E2E API `phase4-lifecycle.e2e.test.ts`; Playwright `_electron`
-   (`apps/desktop/electron-e2e`, bật bằng `npm run test:electron-e2e --workspace=@pve/desktop`).
-7. Hook `PVE_E2E_MOCK_URL` + `E2ePlainEncryptor` cho CI headless.
+1. Mock: `handlers/storage.ts` — content CRUD, multipart upload, download-url, vzdump,
+   prune, backup jobs, scan helpers, PBS file-restore list; fixture `nfs-backup` + `pbs-lab`.
+2. Desktop main: `pve:transfer` + `multipart-upload.ts` (stream đĩa → HTTPS, progress/cancel).
+3. Renderer: storage selectable trên cây → `StorageDrawer` (overview/content/backup jobs),
+   restore wizard, thêm storage + scan NFS/PBS.
+4. Tiêu chí plan §8: test upload **10 MB** + huỷ giữa chừng (`multipart-upload.test.ts`).
 
-**Giai đoạn 5 — Console** (plan §6 GĐ 5):
+### Chưa làm / để mỏng
 
-- Relay + session token đã có từ GĐ 0; cần noVNC, xterm.js + term-attach, tab console **và**
-  cửa sổ tách, toolbar (Ctrl-Alt-Del, clipboard, fullscreen), node shell, SPICE `.vv`.
-- Mock RFB server + fake shell (bắt buộc theo plan).
-- Đọc advisory `PSA-2026-00014-1` trước khi bắt đầu (mục 8).
+- Clipboard sync / quality VNC thuộc GĐ 5 (PR riêng).
+- Download local volume còn dựa `?download=1` mock (1 MiB giả) — đủ cho UI, chưa parity PBS
+  file-restore download đầy đủ.
+- Form thêm storage chưa cover hết mọi loại (iSCSI/Ceph/ZFS chỉ có scan stub + field cơ bản).
 
-### Điểm nối / bẫy vẫn còn hiệu lực (từ GĐ 4)
+### Giai đoạn 5 — Console
 
-- `TaskButton` / `PveGrid` / `PveForm` — dùng lại cho mọi màn hình mới.
+Nếu PR `cursor/phase5-console-8cea` chưa merge: làm/merge trước khi sang GĐ 7 để tránh
+lệch handoff. Nội dung: noVNC, termproxy, cửa sổ tách, mock RFB/shell.
+
+### Giai đoạn 7 — hạ tầng node & cluster (plan §6)
+
+Network (bridge/bond/VLAN/OVS + pending/apply/revert), DNS/hosts/time, disks + SMART,
+LVM/ZFS/directory, Ceph đầy đủ, certificates/ACME, apt + updates, syslog/journal,
+cluster join/create. Dùng fixture `broken-cluster` khi có (Ceph degraded, node chết).
+
+### Điểm nối / bẫy vẫn còn hiệu lực
+
+- `TaskButton` / `PveGrid` / `PveForm` — dùng lại.
+- Upload lớn **chỉ** qua main (`pve:transfer`), không qua `pve:request` urlencoded.
+- Multipart mock: hook `preValidation` chuyển parts → body phẳng trước schema validate.
 - **Bẫy QEMU `memory`:** type chuỗi trên PUT config — phải `String(memory)`.
-- **Wizard / task:** guest mock chỉ xuất hiện **sau** khi task create xong.
-- **E2E Electron:** upsert vault trước khi mở cửa sổ, `pool.connect` sau `did-finish-load`;
-  headless cần `E2ePlainEncryptor` vì `safeStorage`/libsecret thường không sẵn sàng.
+- Headless: `PVE_E2E_MOCK_URL` + `E2ePlainEncryptor` (không có libsecret).
 
 ---
 

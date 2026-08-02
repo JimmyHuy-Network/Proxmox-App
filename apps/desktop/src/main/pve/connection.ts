@@ -50,6 +50,7 @@ export class ManagedConnection {
 
   private phase: ConnectionPhase = 'idle'
   private client: PveClient | null = null
+  private auth: AuthProvider | null = null
   private ticketAuth: TicketAuthProvider | null = null
   /** Vé tạm giữa hai bước TFA. */
   private pendingTfaTicket: string | null = null
@@ -184,11 +185,28 @@ export class ManagedConnection {
   }
 
   private buildClient(auth: AuthProvider): void {
+    this.auth = auth
     this.client = new PveClient({
       transport: this.makeTransport(),
       auth,
       connectionId: this.id,
     })
+  }
+
+  /** Host/port/fingerprint cho upload multipart (bypass PveClient urlencoded). */
+  endpoint(): { host: string; port: number; certFingerprint?: string; allowSelfSigned: boolean } {
+    return {
+      host: this.meta.host,
+      port: this.meta.port,
+      allowSelfSigned: this.meta.allowSelfSigned,
+      ...(this.meta.certFingerprint ? { certFingerprint: this.meta.certFingerprint } : {}),
+    }
+  }
+
+  /** Header xác thực cho request ghi (Cookie+CSRF hoặc Authorization). */
+  async authHeaders(method: PveHttpMethod): Promise<Record<string, string>> {
+    if (!this.auth) throw new Error('Kết nối chưa được mở')
+    return this.auth.headers(method)
   }
 
   private fail(message: string): EstablishResult {
@@ -217,6 +235,7 @@ export class ManagedConnection {
 
   close(): void {
     this.client = null
+    this.auth = null
     this.ticketAuth = null
     this.pendingTfaTicket = null
     this.setPhase('idle')
