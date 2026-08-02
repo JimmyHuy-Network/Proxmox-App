@@ -1,4 +1,4 @@
-import { Card } from 'antd'
+import { Card, message } from 'antd'
 import { DEMO_CONNECTION_ID, type ConsoleOpenRequest } from '@pve/ipc'
 import { TerminalPane } from '../features/console/TerminalPane'
 import { useConnections } from '../stores/connections'
@@ -28,7 +28,11 @@ export function ConsolePage(): React.JSX.Element {
         request={request}
         showDemoBadge={!connected}
         onDetach={() => {
-          void window.pve.console.open(request, { detach: true })
+          void (async () => {
+            const reply = await window.pve.console.open(request, { detach: true })
+            if (!reply.ok) message.error(reply.message)
+            else message.success('Đã mở cửa sổ console tách')
+          })()
         }}
       />
     </Card>

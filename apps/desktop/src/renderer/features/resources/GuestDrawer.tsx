@@ -1,5 +1,7 @@
-import { Badge, Descriptions, Drawer, Flex, Skeleton, Space, Tabs, Tag, Typography } from 'antd'
+import { useState } from 'react'
+import { Badge, Button, Descriptions, Drawer, Flex, Skeleton, Space, Tabs, Tag, Typography } from 'antd'
 import {
+  CodeOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   PoweroffOutlined,
@@ -43,11 +45,15 @@ export function GuestDrawer(): React.JSX.Element {
   const guest = useSelection((s) => s.selectedGuest)
   const select = useSelection((s) => s.select)
   const activeId = useConnections((s) => s.activeId)
+  const [tab, setTab] = useState('overview')
 
   const open = guest !== null && activeId !== null
   const type = guest?.type as 'qemu' | 'lxc' | undefined
   const node = guest?.node
   const vmid = guest?.vmid
+  // Đổi guest → remount Tabs (key) về overview, không dùng effect reset
+  // (effect dễ đua với nút Console trên overview).
+  const tabsKey = guest?.id ?? 'none'
 
   const canQuery = open && Boolean(type) && Boolean(node) && vmid !== undefined
   const basePath = type && `/nodes/{node}/${type}/{vmid}`
@@ -124,12 +130,18 @@ export function GuestDrawer(): React.JSX.Element {
         )
       }
       open={open}
-      onClose={() => select(null)}
+      onClose={() => {
+        setTab('overview')
+        select(null)
+      }}
       width={720}
       destroyOnHidden
     >
       {guest && activeId && basePath && type && node && vmid !== undefined && (
         <Tabs
+          key={tabsKey}
+          activeKey={tab}
+          onChange={setTab}
           items={[
             {
               key: 'overview',
@@ -149,6 +161,9 @@ export function GuestDrawer(): React.JSX.Element {
                   </Descriptions>
 
                   <Space wrap>
+                    <Button icon={<CodeOutlined />} onClick={() => setTab('console')}>
+                      {t('guest.tabConsole')}
+                    </Button>
                     <TaskButton
                       connectionId={activeId}
                       method="POST"

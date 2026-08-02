@@ -62,14 +62,12 @@ export function createConsoleWindow(opts: ConsoleWindowOptions): BrowserWindow {
     height: 700,
     minWidth: 640,
     minHeight: 400,
-    show: false,
+    show: true,
     autoHideMenuBar: true,
     backgroundColor: '#0b0d10',
     title: opts.title,
     webPreferences: { ...SECURE_WEB_PREFERENCES },
   })
-
-  window.once('ready-to-show', () => window.show())
 
   const params = new URLSearchParams({
     sessionId: opts.sessionId,
@@ -77,14 +75,22 @@ export function createConsoleWindow(opts: ConsoleWindowOptions): BrowserWindow {
     kind: opts.kind,
     title: opts.title,
   })
-  const hash = `#/console/session?${params.toString()}`
+  // Hash history: `#/path?query` — không dùng search của http URL (TanStack Router
+  // hash history đọc query trong phần hash).
+  const hash = `/console/session?${params.toString()}`
+
+  window.webContents.on('did-fail-load', (_e, code, desc) => {
+    console.error('Console window failed to load:', code, desc)
+  })
 
   if (DEV_SERVER_URL) {
-    void window.loadURL(`${DEV_SERVER_URL}${hash}`)
+    const base = DEV_SERVER_URL.replace(/\/$/, '')
+    void window.loadURL(`${base}/#${hash}`)
   } else {
-    void window.loadFile(join(__dirname, '../renderer/index.html'), { hash: hash.slice(1) })
+    void window.loadFile(join(__dirname, '../renderer/index.html'), { hash })
   }
 
+  window.focus()
   return window
 }
 
