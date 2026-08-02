@@ -75,6 +75,13 @@
           "description": "Ảnh chụp trước khi nâng cấp lên Debian 13",
           "snaptime": 1750000000,
           "vmstate": false
+        },
+        {
+          "name": "sau-nang-cap",
+          "description": "Sau nâng cấp — lồng trên truoc-nang-cap",
+          "snaptime": 1750003600,
+          "vmstate": false,
+          "parent": "truoc-nang-cap"
         }
       ]
     },

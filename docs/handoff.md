@@ -1,4 +1,4 @@
-# Bàn giao — giữa giai đoạn 4
+# Bàn giao — hết giai đoạn 4
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải** — tức là
@@ -10,9 +10,9 @@ Kế hoạch tổng thể đầy đủ nằm ở [plan.md](plan.md). Hướng d�
 
 ## 1. Đang ở đâu
 
-**Giai đoạn 0, 1, 2, 3 hoàn tất. Giai đoạn 4 đang chạy — phần 1 xong** (hai trừu tượng
-`<PveGrid>`/`<PveForm>`, trang chi tiết guest có tab, snapshot UI đầy đủ). 174 test đạt,
-typecheck và lint sạch.
+**Giai đoạn 0–4 hoàn tất.** Quản lý VM/LXC theo plan §6 GĐ 4: Hardware đầy đủ, Options,
+Cloud-Init, wizard VM/CT, snapshot lồng nhau, clone/migrate/resize/move-disk, template,
+ACL/task theo guest, E2E lifecycle. 202+ test đạt, typecheck và lint sạch.
 
 | Hạng mục | Trạng thái |
 |---|---|
@@ -30,21 +30,26 @@ typecheck và lint sạch.
 | **Mock: snapshot POST/DELETE/rollback + rrddata thật** | Xong, 15 test |
 | **`<PveGrid>` / `<PveForm>`** — hai trừu tượng cốt lõi giai đoạn 4 | Xong, giai đoạn 4 phần 1 |
 | **Trang tổng quan VM/CT** (Dashboard) đọc từ store `resources`, không poll trùng | Xong |
-| **Guest detail có tab**: Tổng quan / Phần cứng (đọc `/config`) / Snapshot | Xong |
+| **Guest detail có tab**: Tổng quan / Phần cứng / Snapshot | Xong |
 | **Snapshot UI đầy đủ**: tạo/liệt kê/rollback/xóa qua `PveGrid`+`PveForm`+`TaskButton` | Xong |
+| **Tab Hardware editable**: CPU/RAM, đĩa, mạng (thêm/sửa/xóa) + form tái sử dụng cho wizard | Xong |
+| **Mock PUT config**: `delete=` CSV + sync `cpus`/`maxmem`; `type=vm` = qemu∪lxc | Xong |
+| **Mock POST tạo VM** (`qmcreate`) / **CT** (`vzcreate`) ghi guest vào world sau task | Xong |
+| **Wizard tạo VM 8 bước** + **wizard tạo CT 7 bước** (Dashboard → Tạo mới) | Xong |
+| **Hardware nâng cao** CD/USB/audio/serial/PCI/EFI-TPM | Xong |
+| **Tab Options** (onboot/startup/agent/…) | Xong |
+| **Clone / migrate / resize** (mock + UI GuestOps) | Xong |
+| **Picker ISO** (wizard VM) / **picker vztmpl** (wizard CT) | Xong |
+| **Convert template** + **move_disk / move_volume** | Xong |
+| **Tab Cloud-Init** (QEMU) | Xong |
+| **Cây snapshot** (`parent`) + clone-from-snapshot | Xong |
+| **Tab Quyền (ACL)** + **tab Tác vụ** theo guest | Xong |
+| **Destroy guest** + lifecycle E2E (API + Playwright `_electron`) | Xong |
 
 Cả bốn nhánh xác thực (ticket, token, TFA, trust-on-first-use chứng chỉ) đã được kiểm
 đầu-cuối với mock HTTPS tự ký trong `connection-pool.test.ts` từ giai đoạn 2.
 
-**Chưa làm ở phần còn lại của giai đoạn 4:** wizard tạo VM/CT, tab Hardware có thể sửa
-(hiện chỉ đọc), clone/migrate/resize-disk, tab Options. Xem mục 6.
-
-**Chưa kiểm bằng tương tác desktop thật.** Phần 1 giai đoạn 4 được xác nhận bằng test tự
-động (174 test, gồm contract test snapshot POST/DELETE/rollback với mock), typecheck, lint,
-và smoke test khởi động renderer (`PVE_SMOKE_TEST=1`) — không có vi phạm CSP. Chưa tự tay
-click qua UI mới (tab Hardware/Snapshot, form tạo snapshot) vì phiên này không được cấp
-quyền điều khiển desktop. Nên đối chiếu bằng tay hoặc yêu cầu lại quyền desktop trước khi
-coi phần này là xong hoàn toàn.
+**Giai đoạn 4 đóng.** Việc tiếp theo là **giai đoạn 5 — Console** (xem mục 6).
 
 ### Kiểm chứng lại toàn bộ
 
@@ -335,56 +340,33 @@ hoàn toàn. Có test riêng.
 
 ---
 
-## 6. Việc tiếp theo — phần còn lại của giai đoạn 4
+## 6. Việc tiếp theo — giai đoạn 5 (Console)
 
-Mục tiêu: **quản lý VM (QEMU) và LXC đầy đủ** — giai đoạn lớn nhất theo plan.md. Phần 1
-(dưới) đã xong; phần việc lớn còn lại là wizard tạo mới và sửa phần cứng thật sự.
+**Giai đoạn 4 đã đóng** theo plan.md §6. Tóm tắt phần hoàn tất cuối GĐ 4:
 
-**Đã xong (phần 1):**
-1. `<PveGrid>` (`renderer/components/PveGrid.tsx`) và `<PveForm>` (`renderer/components/PveForm.tsx`)
-   — hai trừu tượng quyết định giai đoạn này mất 4 tuần hay 10 tuần (xem mục 7 của `docs/plan.md`).
-2. Trang tổng quan VM/CT (Dashboard) — đã sửa để đọc từ store `resources` (push-event từ
-   `ResourcePoller`) thay vì tự `useQuery({refetchInterval: 5000})` như bản giai đoạn 2 cũ. Bản cũ
-   là một nguồn poll trùng thứ hai ngoài `ResourcePoller` — vi phạm chính nguyên tắc kiến trúc đã
-   chốt ở giai đoạn 3. Nếu thấy component nào khác còn tự poll `/cluster/resources`, sửa theo
-   mẫu này.
-3. `GuestDrawer` giờ có `Tabs`: **Tổng quan** (nội dung gốc từ giai đoạn 3, không đổi), **Phần
-   cứng** (`HardwareTab.tsx`, chỉ đọc — liệt kê phẳng mọi khóa của `/config`), **Snapshot**
-   (`SnapshotTab.tsx`, đầy đủ tạo/liệt kê/rollback/xóa).
+1. Convert template (QEMU UPID `qmtemplate` / LXC sync `null`); cấm start template.
+2. `move_disk` / `move_volume` UI + mock (đổi storage, `unusedN` khi không delete).
+3. Tab Cloud-Init (QEMU): ciuser/ipconfig0/sshkeys + regenerate drive.
+4. Snapshot cây theo `parent`; clone modal chọn `snapname`.
+5. Tab Quyền (`/access/acl` lọc `/vms/{vmid}`) + tab Tác vụ (`tasks?vmid=`).
+6. Destroy guest; E2E API `phase4-lifecycle.e2e.test.ts`; Playwright `_electron`
+   (`apps/desktop/electron-e2e`, bật bằng `npm run test:electron-e2e --workspace=@pve/desktop`).
+7. Hook `PVE_E2E_MOCK_URL` + `E2ePlainEncryptor` cho CI headless.
 
-**Còn lại:**
-4. **Wizard tạo VM (8 tab)** và **wizard tạo CT**. Property-string codec (`@pve/api`) đã sẵn sàng
-   cho phần lớn trường đĩa/mạng; các định dạng chỉ-có-tên (`pve-qm-boot`, `pve-qm-hostpci`…) cần
-   model viết tay khi làm tới tab tương ứng.
-5. **Tab Hardware có thể sửa**: hiện tại `HardwareTab` chỉ đọc (bảng khóa/giá trị thô). Cần thêm
-   form sửa từng loại thiết bị (đĩa, CD/DVD, mạng, CPU, RAM, PCI passthrough, USB, serial, audio,
-   EFI/TPM, cloud-init) dùng `parsePropertyString`/`formatPropertyString` để mã hóa hai chiều.
-6. **Clone/template/migrate/move-disk/resize-disk.** Snapshot đã xong toàn bộ (mock từ giai đoạn 3
-   + UI mới); còn thiếu cây snapshot lồng nhau (Proxmox cho snapshot có `parent`) và nút
-   clone-from-snapshot.
-7. **Quyền theo guest**, lịch sử task theo guest, tab Options.
+**Giai đoạn 5 — Console** (plan §6 GĐ 5):
 
-Mock cần bổ sung dần theo từng nhóm tính năng — endpoint nào chưa có handler riêng vẫn trả lời
-hợp lệ nhờ auto-faker, nên UI dựng được trước khi viết hành vi thật cho mock.
+- Relay + session token đã có từ GĐ 0; cần noVNC, xterm.js + term-attach, tab console **và**
+  cửa sổ tách, toolbar (Ctrl-Alt-Del, clipboard, fullscreen), node shell, SPICE `.vv`.
+- Mock RFB server + fake shell (bắt buộc theo plan).
+- Đọc advisory `PSA-2026-00014-1` trước khi bắt đầu (mục 8).
 
-### Điểm nối đã có sẵn cho phần còn lại của giai đoạn 4
+### Điểm nối / bẫy vẫn còn hiệu lực (từ GĐ 4)
 
-- `TaskButton` xử lý mọi hành động trả UPID — clone/migrate/resize dùng lại thẳng, không cần viết
-  lại logic theo dõi. Đã chứng minh lại với snapshot (rollback/xóa trong `SnapshotTab`).
-- `PveGrid<T>` nhận `connectionId`/`method`/`path`/`params`/`columns`/`rowKey`, tự `useQuery` +
-  hiện lỗi + ô tìm kiếm tùy chọn. CHỈ dùng cho endpoint gọi theo yêu cầu (snapshot, storage
-  content, users…) — KHÔNG dùng cho dữ liệu đã có qua push-event (cây tài nguyên, danh sách guest
-  toàn cụm), kẻo tạo poll trùng. Xem `renderer/routes/Dashboard.tsx` để thấy cách đọc thẳng từ
-  store `resources` thay vì PveGrid trong trường hợp đó.
-- `PveForm<T>` nhận `onFinish` tự do (không cố định method/path một-một, vì một form có thể gộp
-  nhiều property string thành một PUT config) — tự bắt lỗi và nối `error.payload.fieldErrors` vào
-  `Form.setFields()`. Kiểu tham số generic của `T` cho `PveGrid`/`PveForm` cần index signature
-  (`[key: string]: unknown`) để thỏa constraint — quên khai sẽ ra lỗi TS2344 (xem mục 2).
-- `useSelection` store (guest đang chọn) đã có; wizard/tab Hardware có thể dùng chung hoặc tách
-  store riêng nếu cần trạng thái phức tạp hơn (đang sửa dở, chưa lưu…).
-- `pveRequest`/`pveQueryKey` trong `renderer/lib/pve.ts` là mẫu chuẩn cho mọi lời gọi mới.
-- Property-string codec (`parsePropertyString`/`formatPropertyString`/`propBool`/`parseSize`)
-  trong `@pve/api` đã test kỹ với dữ liệu thật (giai đoạn 1 và đối chiếu) — dùng thẳng cho form.
+- `TaskButton` / `PveGrid` / `PveForm` — dùng lại cho mọi màn hình mới.
+- **Bẫy QEMU `memory`:** type chuỗi trên PUT config — phải `String(memory)`.
+- **Wizard / task:** guest mock chỉ xuất hiện **sau** khi task create xong.
+- **E2E Electron:** upsert vault trước khi mở cửa sổ, `pool.connect` sau `did-finish-load`;
+  headless cần `E2ePlainEncryptor` vì `safeStorage`/libsecret thường không sẵn sàng.
 
 ---
 

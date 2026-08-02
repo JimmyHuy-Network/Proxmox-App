@@ -1,4 +1,4 @@
-import { Card, Form, Input, Space, Tag } from 'antd'
+import { Card, Form, Input, Space, Tag, Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { TaskButton } from '../../components/TaskButton'
@@ -11,6 +11,7 @@ interface SnapshotRow {
   name: string
   description?: string
   snaptime?: number
+  parent?: string
 }
 
 interface CreateSnapshotValues {
@@ -20,11 +21,7 @@ interface CreateSnapshotValues {
 }
 
 /**
- * Cây snapshot của một guest: tạo mới, rollback, xóa — dùng lại `TaskButton` từ
- * giai đoạn 3 nên không cần viết lại logic theo dõi UPID.
- *
- * Dòng `current` do mock/Proxmox thật luôn chèn thêm để đánh dấu vị trí hiện tại
- * trong cây snapshot — không có `snaptime` thật và không thể rollback/xóa.
+ * Cây snapshot của một guest: tạo mới, rollback, xóa — indent theo `parent`.
  */
 export function SnapshotTab({
   connectionId,
@@ -74,18 +71,34 @@ export function SnapshotTab({
         rowKey="name"
         refetchInterval={5000}
         emptyText={t('guest.snapshotEmpty')}
+        transform={sortSnapshotsForTree}
         columns={[
           {
             title: t('guest.snapshotName'),
             dataIndex: 'name',
-            render: (name: string) =>
-              name === 'current' ? <Tag>{t('guest.snapshotCurrent')}</Tag> : name,
+            render: (name: string, row: SnapshotRow) => {
+              const indent = typeof row['__depth'] === 'number' ? (row['__depth'] as number) : 0
+              if (name === 'current') {
+                return (
+                  <span style={{ paddingLeft: indent * 16 }}>
+                    <Tag>{t('guest.snapshotCurrent')}</Tag>
+                  </span>
+                )
+              }
+              return <span style={{ paddingLeft: indent * 16 }}>{name}</span>
+            },
+          },
+          {
+            title: t('guest.snapshotParent'),
+            dataIndex: 'parent',
+            width: 140,
+            render: (v: string | undefined) => v ?? '—',
           },
           { title: t('guest.snapshotDescription'), dataIndex: 'description' },
           {
             title: t('guest.snapshotTime'),
             dataIndex: 'snaptime',
-            width: 180,
+            width: 160,
             render: (v: number | undefined) => (v ? new Date(v * 1000).toLocaleString() : '—'),
           },
           {
@@ -121,6 +134,43 @@ export function SnapshotTab({
           },
         ]}
       />
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        {t('guest.snapshotTreeHint')}
+      </Typography.Text>
     </Space>
   )
+}
+
+/** Sắp xếp DFS theo parent và gắn `__depth` để indent. */
+export function sortSnapshotsForTree(rows: SnapshotRow[]): SnapshotRow[] {
+  const snaps = rows.filter((r) => r.name !== 'current')
+  const current = rows.find((r) => r.name === 'current')
+  const byParent = new Map<string | undefined, SnapshotRow[]>()
+  for (const s of snaps) {
+    const p = s.parent
+    const list = byParent.get(p) ?? []
+    list.push(s)
+    byParent.set(p, list)
+  }
+  for (const list of byParent.values()) {
+    list.sort((a, b) => (a.snaptime ?? 0) - (b.snaptime ?? 0) || a.name.localeCompare(b.name))
+  }
+
+  const out: SnapshotRow[] = []
+  const walk = (parent: string | undefined, depth: number): void => {
+    for (const child of byParent.get(parent) ?? []) {
+      out.push({ ...child, __depth: depth })
+      walk(child.name, depth + 1)
+    }
+  }
+  walk(undefined, 0)
+  const placed = new Set(out.map((r) => r.name))
+  for (const s of snaps) {
+    if (!placed.has(s.name)) out.push({ ...s, __depth: 0 })
+  }
+  if (current) {
+    const leaf = out.at(-1)
+    out.push({ ...current, __depth: leaf ? Number(leaf['__depth'] ?? 0) : 0, parent: leaf?.name })
+  }
+  return out
 }

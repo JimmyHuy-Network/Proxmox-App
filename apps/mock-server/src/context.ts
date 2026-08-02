@@ -28,10 +28,26 @@ interface InjectedFailure {
  * node ngừng hoạt động chỉ bằng một lời gọi — đó là cách duy nhất dựng được giao
  * diện cho các trạng thái hỏng hóc khi trong tay không có cụm máy thật để phá.
  */
+export interface MockAcl {
+  path: string
+  ugid: string
+  type: 'user' | 'group' | 'token'
+  roleid: string
+  propagate?: number
+}
+
+const SEED_ACLS: MockAcl[] = [
+  { path: '/', ugid: 'root@pam', type: 'user', roleid: 'Administrator', propagate: 1 },
+  { path: '/vms/100', ugid: 'root@pam', type: 'user', roleid: 'PVEVMAdmin', propagate: 1 },
+  { path: '/vms/200', ugid: 'root@pam', type: 'user', roleid: 'PVEVMAdmin', propagate: 1 },
+]
+
 export class MockContext {
   readonly world: World
   readonly tasks = new TaskEngine()
   readonly auth = new AuthStore()
+  /** ACL trong bộ nhớ — đủ cho tab quyền theo guest (GĐ 4); Access đầy đủ là GĐ 8. */
+  acls: MockAcl[] = structuredClone(SEED_ACLS)
 
   private latencyMs = 40
   private latencyJitter = 40
@@ -51,6 +67,7 @@ export class MockContext {
     this.world.reset()
     this.tasks.reset()
     this.auth.reset()
+    this.acls = structuredClone(SEED_ACLS)
     this.failures = []
   }
 

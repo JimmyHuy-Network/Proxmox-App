@@ -11,8 +11,14 @@ import { TaskButton } from '../../components/TaskButton'
 import { RrdChart, formatBytes, formatPercent } from '../../components/RrdChart'
 import { useConnections } from '../../stores/connections'
 import { useSelection } from '../../stores/selection'
+import { useClusterResources } from '../../hooks/useClusterResources'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
+import { CloudInitTab } from './CloudInitTab'
+import { GuestOps } from './GuestOps'
+import { GuestTasksTab } from './GuestTasksTab'
 import { HardwareTab } from './HardwareTab'
+import { OptionsTab } from './OptionsTab'
+import { PermissionsTab } from './PermissionsTab'
 import { SnapshotTab } from './SnapshotTab'
 
 interface GuestStatus {
@@ -24,12 +30,12 @@ interface GuestStatus {
   uptime?: number
 }
 
+interface SnapshotListItem {
+  name: string
+}
+
 /**
  * Xem nhanh một guest: trạng thái trực tiếp, biểu đồ CPU/RAM, và nút vòng đời.
- *
- * Mở từ `ResourceTree` qua store `selection` dùng chung. Đây là nơi ba trừu tượng
- * của giai đoạn 3 gặp nhau: `TaskButton` bắn hành động, `RrdChart` vẽ xu hướng,
- * và tác vụ trả về hiện ngay trong `TaskDock` ở đáy màn hình.
  */
 export function GuestDrawer(): React.JSX.Element {
   const { t } = useTranslation()
@@ -64,9 +70,42 @@ export function GuestDrawer(): React.JSX.Element {
     refetchInterval: 15_000,
   })
 
+  const configQuery = useQuery({
+    queryKey: canQuery ? pveQueryKey(activeId!, 'GET', `${basePath}/config`, { node, vmid }) : ['guest-config', 'idle'],
+    queryFn: () => pveRequest<Record<string, unknown>>(activeId!, 'GET', `${basePath}/config`, { node, vmid }),
+    enabled: canQuery,
+  })
+
+  const nextIdQuery = useQuery({
+    queryKey: activeId ? pveQueryKey(activeId, 'GET', '/cluster/nextid', {}) : ['nextid', 'idle'],
+    queryFn: () => pveRequest<string | number>(activeId!, 'GET', '/cluster/nextid', {}),
+    enabled: Boolean(activeId) && open,
+  })
+
+  const snapsQuery = useQuery({
+    queryKey: canQuery ? pveQueryKey(activeId!, 'GET', `${basePath}/snapshot`, { node, vmid }) : ['guest-snaps', 'idle'],
+    queryFn: () => pveRequest<SnapshotListItem[]>(activeId!, 'GET', `${basePath}/snapshot`, { node, vmid }),
+    enabled: canQuery,
+  })
+
+  const { resources } = useClusterResources(activeId)
+  const nodeNames = (resources as { type?: string; node?: string }[])
+    .filter((r) => r.type === 'node' && r.node)
+    .map((r) => r.node as string)
+    .sort()
+
+  const diskKeys = Object.keys(configQuery.data ?? {}).filter((k) =>
+    type === 'lxc' ? k === 'rootfs' || /^mp\d+$/.test(k) : /^(scsi|virtio|ide|sata)\d+$/.test(k),
+  )
+
   const status = statusQuery.data?.status ?? guest?.status
   const running = status === 'running'
+  const isTemplate =
+    guest?.template === 1 ||
+    configQuery.data?.['template'] === 1 ||
+    configQuery.data?.['template'] === '1'
   const rrdPoints = rrdQuery.data ?? []
+  const snapNames = (snapsQuery.data ?? []).map((s) => s.name).filter((n) => n !== 'current')
 
   return (
     <Drawer
@@ -76,6 +115,7 @@ export function GuestDrawer(): React.JSX.Element {
             <Badge status={running ? 'success' : 'default'} />
             {guest.name}
             <Tag>{type === 'qemu' ? 'VM' : 'CT'}</Tag>
+            {isTemplate ? <Tag color="gold">{t('guest.templateBadge')}</Tag> : null}
             <Typography.Text type="secondary">#{vmid}</Typography.Text>
           </Space>
         ) : (
@@ -84,7 +124,7 @@ export function GuestDrawer(): React.JSX.Element {
       }
       open={open}
       onClose={() => select(null)}
-      width={640}
+      width={720}
       destroyOnHidden
     >
       {guest && activeId && basePath && type && node && vmid !== undefined && (
@@ -116,7 +156,7 @@ export function GuestDrawer(): React.JSX.Element {
                       label={t('guest.start')}
                       icon={<PlayCircleOutlined />}
                       type="primary"
-                      disabled={running}
+                      disabled={running || Boolean(isTemplate)}
                     />
                     <TaskButton
                       connectionId={activeId}
@@ -147,7 +187,31 @@ export function GuestDrawer(): React.JSX.Element {
                       icon={<ReloadOutlined />}
                       disabled={!running}
                     />
+                    <TaskButton
+                      connectionId={activeId}
+                      method="DELETE"
+                      path={basePath}
+                      params={{ node, vmid, purge: 1 }}
+                      label={t('guest.destroy')}
+                      danger
+                      confirmMessage={t('guest.destroyConfirm')}
+                      disabled={running}
+                    />
                   </Space>
+
+                  <GuestOps
+                    connectionId={activeId}
+                    node={node}
+                    type={type}
+                    vmid={vmid}
+                    nodes={nodeNames}
+                    diskKeys={diskKeys}
+                    nextId={
+                      nextIdQuery.data !== undefined ? Number(nextIdQuery.data) : undefined
+                    }
+                    isTemplate={Boolean(isTemplate)}
+                    snapshots={snapNames}
+                  />
 
                   {rrdQuery.isLoading ? (
                     <Skeleton active paragraph={{ rows: 4 }} />
@@ -181,10 +245,34 @@ export function GuestDrawer(): React.JSX.Element {
               label: t('guest.tabHardware'),
               children: <HardwareTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
             },
+            ...(type === 'qemu'
+              ? [
+                  {
+                    key: 'cloudinit',
+                    label: t('guest.tabCloudInit'),
+                    children: <CloudInitTab connectionId={activeId} node={node} vmid={vmid} />,
+                  },
+                ]
+              : []),
             {
               key: 'snapshot',
               label: t('guest.tabSnapshot'),
               children: <SnapshotTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
+            },
+            {
+              key: 'options',
+              label: t('guest.tabOptions'),
+              children: <OptionsTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
+            },
+            {
+              key: 'permissions',
+              label: t('guest.tabPermissions'),
+              children: <PermissionsTab connectionId={activeId} vmid={vmid} />,
+            },
+            {
+              key: 'tasks',
+              label: t('guest.tabTasks'),
+              children: <GuestTasksTab connectionId={activeId} node={node} vmid={vmid} />,
             },
           ]}
         />

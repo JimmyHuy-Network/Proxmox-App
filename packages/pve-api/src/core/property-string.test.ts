@@ -106,6 +106,22 @@ describe('formatPropertyString', () => {
     const again = parsePropertyString(formatPropertyString(parsed, scsiSchema), scsiSchema)
     expect(again).toEqual(parsed)
   })
+
+  it('đảo bí danh model card mạng khi ghi', () => {
+    const out = formatPropertyString(
+      { model: 'virtio', macaddr: 'AA:BB:CC:DD:EE:FF', bridge: 'vmbr0', firewall: true },
+      netSchema,
+    )
+    expect(out).toContain('virtio=AA:BB:CC:DD:EE:FF')
+    expect(out).toContain('bridge=vmbr0')
+    expect(out).toContain('firewall=1')
+    expect(out).not.toContain('model=')
+    expect(out).not.toContain('macaddr=')
+
+    const again = parsePropertyString(out, netSchema)
+    expect(again['model']).toBe('virtio')
+    expect(again['macaddr']).toBe('AA:BB:CC:DD:EE:FF')
+  })
 })
 
 describe('trợ giúp đọc giá trị', () => {

@@ -102,7 +102,10 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
   on('GET', '/cluster/resources', ({ mock, input }) => {
     const rows = mock.world.clusterResources()
     const type = input['type']
-    return typeof type === 'string' ? rows.filter((r) => r['type'] === type) : rows
+    // Proxmox: `type=vm` gồm cả qemu và lxc (không phải một type riêng).
+    if (typeof type !== 'string') return rows
+    if (type === 'vm') return rows.filter((r) => r['type'] === 'qemu' || r['type'] === 'lxc')
+    return rows.filter((r) => r['type'] === type)
   })
 
   on('GET', '/cluster/status', ({ mock }) => {
@@ -185,9 +188,86 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
     )
   })
 
-  on('GET', '/nodes/{node}/tasks', ({ input, mock }) =>
-    mock.tasks.list(String(input['node'])).map(taskSummary),
+  on('GET', '/nodes/{node}/tasks', ({ input, mock }) => {
+    let rows = mock.tasks.list(String(input['node']))
+    if (input['vmid'] !== undefined && input['vmid'] !== null && input['vmid'] !== '') {
+      const vmid = String(input['vmid'])
+      rows = rows.filter((t) => t.id === vmid)
+    }
+    if (typeof input['typefilter'] === 'string' && input['typefilter'] !== '') {
+      rows = rows.filter((t) => t.type === input['typefilter'])
+    }
+    const start = Number(input['start'] ?? 0)
+    const limit = Number(input['limit'] ?? 50)
+    return rows.slice(start, start + limit).map(taskSummary)
+  })
+
+  // ── ACL (mỏng — đủ tab quyền guest; Access đầy đủ ở GĐ 8) ─────────────────
+  on('GET', '/access/acl', ({ mock }) =>
+    mock.acls.map((a) => ({
+      path: a.path,
+      ugid: a.ugid,
+      type: a.type,
+      roleid: a.roleid,
+      ...(a.propagate !== undefined ? { propagate: a.propagate } : {}),
+    })),
   )
+
+  on('PUT', '/access/acl', ({ input, mock }) => {
+    const path = String(input['path'] ?? '')
+    if (!path) throw new HttpError(400, 'Parameter verification failed. (path: property is missing)')
+    const roles = String(input['roles'] ?? '')
+      .split(',')
+      .map((r) => r.trim())
+      .filter(Boolean)
+    if (roles.length === 0) {
+      throw new HttpError(400, 'Parameter verification failed. (roles: property is missing)')
+    }
+    const users = String(input['users'] ?? '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean)
+    const groups = String(input['groups'] ?? '')
+      .split(',')
+      .map((g) => g.trim())
+      .filter(Boolean)
+    const tokens = String(input['tokens'] ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    if (users.length + groups.length + tokens.length === 0) {
+      throw new HttpError(400, 'no users/groups/tokens specified')
+    }
+    const del = input['delete'] === 1 || input['delete'] === true || input['delete'] === '1'
+    const propagate =
+      input['propagate'] === 0 || input['propagate'] === false || input['propagate'] === '0' ? 0 : 1
+
+    const entries: { ugid: string; type: 'user' | 'group' | 'token' }[] = [
+      ...users.map((ugid) => ({ ugid, type: 'user' as const })),
+      ...groups.map((ugid) => ({ ugid, type: 'group' as const })),
+      ...tokens.map((ugid) => ({ ugid, type: 'token' as const })),
+    ]
+
+    for (const entry of entries) {
+      for (const roleid of roles) {
+        if (del) {
+          mock.acls = mock.acls.filter(
+            (a) =>
+              !(a.path === path && a.ugid === entry.ugid && a.type === entry.type && a.roleid === roleid),
+          )
+        } else {
+          const exists = mock.acls.some(
+            (a) =>
+              a.path === path && a.ugid === entry.ugid && a.type === entry.type && a.roleid === roleid,
+          )
+          if (!exists) {
+            mock.acls.push({ path, ugid: entry.ugid, type: entry.type, roleid, propagate })
+          }
+        }
+      }
+    }
+    return null
+  })
 
   on('GET', '/nodes/{node}/tasks/{upid}/status', ({ input, mock }) => {
     const task = mock.tasks.get(String(input['upid']))
@@ -212,6 +292,78 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
   // ── Guest: danh sách và trạng thái ─────────────────────────────────────────
 
+  // Tạo VM mới — trả UPID `qmcreate`; guest chỉ xuất hiện trong world khi task xong
+  // (khớp hành vi Proxmox: cấu hình/đĩa ghi xong mới thấy trong /cluster/resources).
+  on('POST', '/nodes/{node}/qemu', ({ input, mock, auth }) => {
+    const node = String(input['node'])
+    if (!mock.world.node(node)) throw new HttpError(500, 'no such node')
+
+    const vmid = num(input['vmid'])
+    if (!Number.isInteger(vmid) || vmid < 100) {
+      throw new HttpError(400, 'invalid vmid')
+    }
+    if (mock.world.guest(vmid)) {
+      throw new HttpError(500, `VM ${vmid} already exists`)
+    }
+
+    const shouldStart = input['start'] === 1 || input['start'] === '1' || input['start'] === true
+    const guest = buildQemuGuestFromCreate(node, vmid, input)
+
+    return runTask(mock, {
+      node,
+      type: 'qmcreate',
+      id: String(vmid),
+      user: auth.username,
+      onSuccess: () => {
+        mock.world.addGuest(guest)
+        if (shouldStart) {
+          guest.status = 'running'
+          guest.uptime = 1
+          guest.mem = Math.floor(guest.maxmem * 0.4)
+          guest.cpu = 0.02
+        }
+      },
+    })
+  })
+
+  // Tạo CT (LXC) — required: node, vmid, ostemplate. Task type thật là `vzcreate`.
+  on('POST', '/nodes/{node}/lxc', ({ input, mock, auth }) => {
+    const node = String(input['node'])
+    if (!mock.world.node(node)) throw new HttpError(500, 'no such node')
+
+    const vmid = num(input['vmid'])
+    if (!Number.isInteger(vmid) || vmid < 100) {
+      throw new HttpError(400, 'invalid vmid')
+    }
+    if (mock.world.guest(vmid)) {
+      throw new HttpError(500, `CT ${vmid} already exists`)
+    }
+
+    const ostemplate = input['ostemplate']
+    if (typeof ostemplate !== 'string' || ostemplate.trim() === '') {
+      throw new HttpError(400, 'Parameter verification failed. (ostemplate: property is missing and it is not optional)')
+    }
+
+    const shouldStart = input['start'] === 1 || input['start'] === '1' || input['start'] === true
+    const guest = buildLxcGuestFromCreate(node, vmid, input)
+
+    return runTask(mock, {
+      node,
+      type: 'vzcreate',
+      id: String(vmid),
+      user: auth.username,
+      onSuccess: () => {
+        mock.world.addGuest(guest)
+        if (shouldStart) {
+          guest.status = 'running'
+          guest.uptime = 1
+          guest.mem = Math.floor(guest.maxmem * 0.4)
+          guest.cpu = 0.02
+        }
+      },
+    })
+  })
+
   for (const type of ['qemu', 'lxc'] as const) {
     on('GET', `/nodes/{node}/${type}`, ({ input, mock }) =>
       mock.world.current.guests
@@ -235,11 +387,44 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
     on('PUT', `/nodes/{node}/${type}/{vmid}/config`, ({ input, mock }) => {
       const guest = requireGuest(mock, String(input['node']), num(input['vmid']), type)
-      for (const [key, value] of Object.entries(input)) {
-        if (key === 'node' || key === 'vmid' || key === 'digest') continue
-        if (value === undefined || value === null) continue
-        guest.config[key] = value as string | number
+
+      // Proxmox nhận `delete=net0,scsi1` (CSV) để gỡ khóa khỏi config.
+      const deleteRaw = input['delete']
+      if (typeof deleteRaw === 'string' && deleteRaw.length > 0) {
+        for (const key of deleteRaw.split(',').map((s) => s.trim()).filter(Boolean)) {
+          delete guest.config[key]
+        }
       }
+
+      for (const [key, value] of Object.entries(input)) {
+        if (key === 'node' || key === 'vmid' || key === 'digest' || key === 'delete') continue
+        if (value === undefined || value === null || value === '') continue
+        // form-urlencoded đưa mọi thứ thành chuỗi; ép lại số cho vài scalar quen thuộc
+        // để khớp fixture và `/cluster/resources`.
+        if (
+          typeof value === 'string' &&
+          /^(cores|sockets|vcpus|memory|swap|balloon|shares|cpuunits)$/.test(key) &&
+          value !== '' &&
+          Number.isFinite(Number(value))
+        ) {
+          guest.config[key] = Number(value)
+        } else {
+          guest.config[key] = value as string | number
+        }
+      }
+
+      // Đồng bộ trường tóm tắt dùng bởi /cluster/resources + status/current.
+      // QEMU memory trên dây là chuỗi; LXC là số — `num()` nhận cả hai.
+      const cores = num(guest.config['cores'] ?? guest.cpus)
+      const sockets = num(guest.config['sockets'] ?? 1)
+      guest.cpus = Math.max(1, cores * (type === 'qemu' ? sockets : 1))
+      if (guest.config['memory'] !== undefined) {
+        guest.maxmem = num(guest.config['memory']) * 1024 * 1024
+        if (guest.status === 'running') {
+          guest.mem = Math.min(guest.mem, guest.maxmem)
+        }
+      }
+
       return null
     })
 
@@ -280,11 +465,17 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
         id: String(vmid),
         user: auth.username,
         onSuccess: () => {
+          // Parent = snapshot lá hiện tại (không có con), hoặc snapshot mới nhất.
+          const children = new Set(guest.snapshots.map((s) => s.parent).filter(Boolean))
+          const leaf =
+            [...guest.snapshots].reverse().find((s) => !children.has(s.name)) ??
+            guest.snapshots.at(-1)
           const snapshot: MockSnapshot = {
             name,
             description: typeof input['description'] === 'string' ? input['description'] : '',
             snaptime: Math.floor(Date.now() / 1000),
             vmstate: input['vmstate'] === 1 || input['vmstate'] === '1',
+            ...(leaf ? { parent: leaf.name } : {}),
           }
           guest.snapshots.push(snapshot)
         },
@@ -307,7 +498,18 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
         id: String(vmid),
         user: auth.username,
         onSuccess: () => {
-          guest.snapshots = guest.snapshots.filter((s) => s.name !== name)
+          const removed = guest.snapshots.find((s) => s.name === name)
+          guest.snapshots = guest.snapshots
+            .filter((s) => s.name !== name)
+            .map((s) =>
+              s.parent === name
+                ? { ...s, ...(removed?.parent ? { parent: removed.parent } : { parent: undefined }) }
+                : s,
+            )
+          // Xóa field parent nếu undefined để JSON sạch.
+          for (const s of guest.snapshots) {
+            if (s.parent === undefined) delete s.parent
+          }
         },
       })
     })
@@ -324,6 +526,257 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
       return runTask(mock, { node, type: `${prefix}rollback`, id: String(vmid), user: auth.username })
     })
+
+    // ── Clone / migrate / resize ───────────────────────────────────────────
+    on('POST', `/nodes/{node}/${type}/{vmid}/clone`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const source = requireGuest(mock, node, vmid, type)
+      const newid = num(input['newid'])
+      if (!Number.isInteger(newid) || newid < 100) throw new HttpError(400, 'invalid newid')
+      if (mock.world.guest(newid)) throw new HttpError(500, `VM ${newid} already exists`)
+
+      const targetNode =
+        typeof input['target'] === 'string' && input['target'] !== ''
+          ? String(input['target'])
+          : node
+      if (!mock.world.node(targetNode)) throw new HttpError(500, 'no such node')
+
+      const cloneName =
+        type === 'qemu'
+          ? String(input['name'] ?? `${source.name}-clone`)
+          : String(input['hostname'] ?? `${source.name}-clone`)
+
+      const snapname =
+        typeof input['snapname'] === 'string' && input['snapname'] !== ''
+          ? String(input['snapname'])
+          : undefined
+      if (snapname && !source.snapshots.some((s) => s.name === snapname)) {
+        throw new HttpError(500, `snapshot '${snapname}' does not exist`)
+      }
+
+      return runTask(mock, {
+        node,
+        type: type === 'qemu' ? 'qmclone' : 'vzclone',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          const cloned: MockGuest = {
+            ...structuredClone(source),
+            vmid: newid,
+            name: cloneName,
+            node: targetNode,
+            status: 'stopped',
+            uptime: 0,
+            mem: 0,
+            cpu: 0,
+            snapshots: [],
+            lock: undefined,
+            template: input['full'] === 0 || input['full'] === '0' ? source.template : false,
+          }
+          if (type === 'qemu') cloned.config['name'] = cloneName
+          else cloned.config['hostname'] = cloneName
+          if (snapname) {
+            const note = `cloned-from-snapshot:${snapname}`
+            const prev = typeof cloned.config['description'] === 'string' ? cloned.config['description'] : ''
+            cloned.config['description'] = prev ? `${prev}; ${note}` : note
+          }
+          mock.world.addGuest(cloned)
+        },
+      })
+    })
+
+    on('POST', `/nodes/{node}/${type}/{vmid}/migrate`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      const target = String(input['target'] ?? '')
+      if (!target || !mock.world.node(target)) throw new HttpError(500, 'no such target node')
+      if (target === node) throw new HttpError(500, 'target is same as source')
+
+      return runTask(mock, {
+        node,
+        type: type === 'qemu' ? 'qmigrate' : 'vzmigrate',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          guest.node = target
+        },
+      })
+    })
+
+    on('PUT', `/nodes/{node}/${type}/{vmid}/resize`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      const disk = String(input['disk'] ?? '')
+      const sizeRaw = String(input['size'] ?? '')
+      if (!disk || !(disk in guest.config)) {
+        throw new HttpError(500, `disk '${disk}' does not exist`)
+      }
+      if (!sizeRaw) throw new HttpError(400, 'missing size')
+
+      return runTask(mock, {
+        node,
+        type: type === 'qemu' ? 'qmresize' : 'vzresize',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          guest.config[disk] = applyResizeToProperty(String(guest.config[disk]), sizeRaw)
+          const bytes = sizeToBytes(sizeRaw.replace(/^\+/, ''))
+          if (bytes !== undefined) {
+            guest.maxdisk = sizeRaw.startsWith('+') ? guest.maxdisk + bytes : bytes
+          }
+        },
+      })
+    })
+
+    // ── Convert template ───────────────────────────────────────────────────
+    on('POST', `/nodes/{node}/${type}/{vmid}/template`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      if (guest.template) throw new HttpError(500, 'guest is already a template')
+      if (guest.status !== 'stopped') {
+        throw new HttpError(500, "can't convert a running VM to a template")
+      }
+
+      const apply = (): void => {
+        guest.template = true
+        guest.config['template'] = 1
+        // Đổi tên volume `vm-` → `base-` giống hành vi PVE khi convert.
+        for (const [key, raw] of Object.entries(guest.config)) {
+          if (typeof raw !== 'string') continue
+          if (!/^(scsi|virtio|ide|sata|efidisk|tpmstate|rootfs|mp)\d*$/.test(key)) continue
+          guest.config[key] = raw.replace(/:vm-/, ':base-')
+        }
+      }
+
+      if (type === 'lxc') {
+        apply()
+        return null
+      }
+      return runTask(mock, {
+        node,
+        type: 'qmtemplate',
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: apply,
+      })
+    })
+
+    // ── Move disk / volume ─────────────────────────────────────────────────
+    if (type === 'qemu') {
+      on('POST', `/nodes/{node}/qemu/{vmid}/move_disk`, ({ input, mock, auth }) => {
+        const node = String(input['node'])
+        const vmid = num(input['vmid'])
+        const guest = requireGuest(mock, node, vmid, 'qemu')
+        const disk = String(input['disk'] ?? '')
+        const storage = String(input['storage'] ?? '')
+        if (!disk || !(disk in guest.config)) {
+          throw new HttpError(500, `disk '${disk}' does not exist`)
+        }
+        if (!storage) throw new HttpError(400, 'missing storage')
+        if (!mock.world.storage(storage)) throw new HttpError(500, 'storage does not exist')
+        const del = input['delete'] === 1 || input['delete'] === true || input['delete'] === '1'
+
+        return runTask(mock, {
+          node,
+          type: 'qmmove',
+          id: String(vmid),
+          user: auth.username,
+          onSuccess: () => {
+            const prev = String(guest.config[disk])
+            guest.config[disk] = rewriteVolumeStorage(prev, storage, vmid)
+            if (!del) {
+              const unusedKey = nextUnusedKey(guest.config)
+              guest.config[unusedKey] = volumeFileOnly(prev)
+            }
+          },
+        })
+      })
+    } else {
+      on('POST', `/nodes/{node}/lxc/{vmid}/move_volume`, ({ input, mock, auth }) => {
+        const node = String(input['node'])
+        const vmid = num(input['vmid'])
+        const guest = requireGuest(mock, node, vmid, 'lxc')
+        const volume = String(input['volume'] ?? '')
+        const storage = String(input['storage'] ?? '')
+        if (!volume || !(volume in guest.config)) {
+          throw new HttpError(500, `volume '${volume}' does not exist`)
+        }
+        if (!storage) throw new HttpError(400, 'missing storage')
+        if (!mock.world.storage(storage)) throw new HttpError(500, 'storage does not exist')
+        const del = input['delete'] === 1 || input['delete'] === true || input['delete'] === '1'
+
+        return runTask(mock, {
+          node,
+          type: 'vzmove',
+          id: String(vmid),
+          user: auth.username,
+          onSuccess: () => {
+            const prev = String(guest.config[volume])
+            guest.config[volume] = rewriteVolumeStorage(prev, storage, vmid)
+            if (!del) {
+              const unusedKey = nextUnusedKey(guest.config)
+              guest.config[unusedKey] = volumeFileOnly(prev)
+            }
+          },
+        })
+      })
+    }
+
+    // ── Destroy guest ──────────────────────────────────────────────────────
+    on('DELETE', `/nodes/{node}/${type}/{vmid}`, ({ input, mock, auth }) => {
+      const node = String(input['node'])
+      const vmid = num(input['vmid'])
+      const guest = requireGuest(mock, node, vmid, type)
+      if (guest.config['protection'] === 1 || guest.config['protection'] === '1') {
+        throw new HttpError(500, 'VM is protected')
+      }
+      return runTask(mock, {
+        node,
+        type: `${prefix}destroy`,
+        id: String(vmid),
+        user: auth.username,
+        onSuccess: () => {
+          mock.world.removeGuest(vmid)
+        },
+      })
+    })
+
+    // ── Cloud-init (QEMU) ──────────────────────────────────────────────────
+    if (type === 'qemu') {
+      on('GET', '/nodes/{node}/qemu/{vmid}/cloudinit', ({ input, mock }) => {
+        const guest = requireGuest(mock, String(input['node']), num(input['vmid']), 'qemu')
+        const keys = [
+          'ciuser',
+          'cipassword',
+          'citype',
+          'ciupgrade',
+          'nameserver',
+          'searchdomain',
+          'sshkeys',
+          'ipconfig0',
+        ]
+        return keys
+          .filter((k) => guest.config[k] !== undefined)
+          .map((key) => ({ key, value: String(guest.config[key]) }))
+      })
+
+      on('PUT', '/nodes/{node}/qemu/{vmid}/cloudinit', ({ input, mock }) => {
+        requireGuest(mock, String(input['node']), num(input['vmid']), 'qemu')
+        // Regenerated — mock ghi nhận bằng cách gắn cờ nhẹ (không bắt buộc UI).
+        return null
+      })
+
+      on('GET', '/nodes/{node}/qemu/{vmid}/cloudinit/dump', ({ input, mock }) => {
+        const guest = requireGuest(mock, String(input['node']), num(input['vmid']), 'qemu')
+        const user = guest.config['ciuser'] ?? 'ubuntu'
+        const ns = guest.config['nameserver'] ?? '1.1.1.1'
+        return `#cloud-config\nuser: ${user}\nnameserver: ${ns}\n`
+      })
+    }
 
     // ── RRD ────────────────────────────────────────────────────────────────
     on('GET', `/nodes/{node}/${type}/{vmid}/rrddata`, ({ input, mock }) => {
@@ -348,6 +801,9 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
 
         if (guest.lock) {
           throw new HttpError(500, `VM is locked (${guest.lock})`)
+        }
+        if (action === 'start' && guest.template) {
+          throw new HttpError(500, "can't start a template")
         }
         if (action === 'start' && guest.status === 'running') {
           throw new HttpError(500, `${type === 'qemu' ? 'VM' : 'CT'} ${vmid} already running`)
@@ -449,6 +905,234 @@ export function buildHandlers(authStore: AuthStore): HandlerTable {
   })
 
   return handlers
+}
+
+/** Tham số create không thuộc config guest (meta của API). */
+const CREATE_META_KEYS = new Set([
+  'node',
+  'vmid',
+  'start',
+  'unique',
+  'force',
+  'pool',
+  'bwlimit',
+  'live-restore',
+  'storage',
+  'ostemplate',
+  'password',
+  'ssh-public-keys',
+  'ignore-unpack-errors',
+  'restore',
+  'ha-managed',
+])
+
+/**
+ * Dựng `MockGuest` từ body `POST /nodes/{node}/qemu`.
+ * `storage` chỉ là gợi ý mặc định của Proxmox khi tạo đĩa — không lưu vào config.
+ */
+function buildQemuGuestFromCreate(
+  node: string,
+  vmid: number,
+  input: Record<string, unknown>,
+): MockGuest {
+  const config: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (CREATE_META_KEYS.has(key)) continue
+    if (value === undefined || value === null || value === '') continue
+    if (
+      typeof value === 'string' &&
+      /^(cores|sockets|vcpus|memory|swap|balloon|shares|cpuunits)$/.test(key) &&
+      Number.isFinite(Number(value))
+    ) {
+      config[key] = Number(value)
+    } else if (typeof value === 'boolean') {
+      config[key] = value ? 1 : 0
+    } else {
+      config[key] = value as string | number
+    }
+  }
+
+  if (config['cores'] === undefined) config['cores'] = 1
+  if (config['sockets'] === undefined) config['sockets'] = 1
+  if (config['memory'] === undefined) config['memory'] = 512
+
+  const cores = num(config['cores'])
+  const sockets = num(config['sockets'])
+  const memoryMiB = num(config['memory'])
+  const name =
+    typeof config['name'] === 'string' && config['name'] !== ''
+      ? String(config['name'])
+      : `vm-${vmid}`
+
+  let maxdisk = 0
+  for (const [key, value] of Object.entries(config)) {
+    if (!/^(scsi|virtio|ide|sata)\d+$/.test(key)) continue
+    const raw = String(value)
+    const sizeMatch = /(?:^|,)size=(\d+(?:\.\d+)?)([GT])/i.exec(raw)
+    if (sizeMatch) {
+      const n = Number(sizeMatch[1])
+      maxdisk += sizeMatch[2]!.toUpperCase() === 'T' ? n * 1024 ** 4 : n * 1024 ** 3
+      continue
+    }
+    // Dạng tạo mới: `local-lvm:32` (GiB)
+    const createMatch = /^[^:]+:(\d+(?:\.\d+)?)$/.exec(raw.split(',')[0] ?? '')
+    if (createMatch) {
+      maxdisk += Number(createMatch[1]) * 1024 ** 3
+    }
+  }
+
+  return {
+    vmid,
+    name,
+    type: 'qemu',
+    node,
+    status: 'stopped',
+    cpu: 0,
+    cpus: Math.max(1, cores * sockets),
+    mem: 0,
+    maxmem: memoryMiB * 1024 * 1024,
+    disk: 0,
+    maxdisk,
+    uptime: 0,
+    template: config['template'] === 1 || config['template'] === '1',
+    ...(typeof config['tags'] === 'string' ? { tags: String(config['tags']) } : {}),
+    config,
+    snapshots: [],
+  }
+}
+
+/**
+ * Dựng `MockGuest` LXC từ body `POST /nodes/{node}/lxc`.
+ * `ostemplate` / `password` chỉ dùng lúc tạo — không ghi vào config.
+ */
+function buildLxcGuestFromCreate(
+  node: string,
+  vmid: number,
+  input: Record<string, unknown>,
+): MockGuest {
+  const config: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (CREATE_META_KEYS.has(key)) continue
+    if (value === undefined || value === null || value === '') continue
+    if (
+      typeof value === 'string' &&
+      /^(cores|memory|swap|cpuunits)$/.test(key) &&
+      Number.isFinite(Number(value))
+    ) {
+      config[key] = Number(value)
+    } else if (typeof value === 'boolean') {
+      config[key] = value ? 1 : 0
+    } else {
+      config[key] = value as string | number
+    }
+  }
+
+  if (config['cores'] === undefined) config['cores'] = 1
+  if (config['memory'] === undefined) config['memory'] = 512
+  if (config['swap'] === undefined) config['swap'] = 512
+  if (config['arch'] === undefined) config['arch'] = 'amd64'
+  if (config['unprivileged'] === undefined) config['unprivileged'] = 1
+
+  // rootfs mặc định nếu wizard chỉ gửi storage:size qua tham số rootfs hoặc storage+size ngầm.
+  if (config['rootfs'] === undefined) {
+    const storage = typeof input['storage'] === 'string' && input['storage'] !== '' ? String(input['storage']) : 'local-lvm'
+    config['rootfs'] = `${storage}:8`
+  }
+
+  const cores = num(config['cores'])
+  const memoryMiB = num(config['memory'])
+  const hostname =
+    typeof config['hostname'] === 'string' && config['hostname'] !== ''
+      ? String(config['hostname'])
+      : `ct-${vmid}`
+  if (config['hostname'] === undefined) config['hostname'] = hostname
+
+  let maxdisk = 8 * 1024 ** 3
+  const rootfs = String(config['rootfs'] ?? '')
+  const sizeMatch = /(?:^|,)size=(\d+(?:\.\d+)?)([GT])/i.exec(rootfs)
+  if (sizeMatch) {
+    const n = Number(sizeMatch[1])
+    maxdisk = sizeMatch[2]!.toUpperCase() === 'T' ? n * 1024 ** 4 : n * 1024 ** 3
+  } else {
+    const createMatch = /^[^:]+:(\d+(?:\.\d+)?)$/.exec(rootfs.split(',')[0] ?? '')
+    if (createMatch) maxdisk = Number(createMatch[1]) * 1024 ** 3
+  }
+
+  return {
+    vmid,
+    name: hostname,
+    type: 'lxc',
+    node,
+    status: 'stopped',
+    cpu: 0,
+    cpus: Math.max(1, cores),
+    mem: 0,
+    maxmem: memoryMiB * 1024 * 1024,
+    disk: 0,
+    maxdisk,
+    uptime: 0,
+    template: config['template'] === 1 || config['template'] === '1',
+    ...(typeof config['tags'] === 'string' ? { tags: String(config['tags']) } : {}),
+    config,
+    snapshots: [],
+  }
+}
+
+/** Đổi tiền tố storage trong property string volume (`local-lvm:vm-100-disk-0,...`). */
+function rewriteVolumeStorage(raw: string, storage: string, vmid: number): string {
+  const comma = raw.indexOf(',')
+  const head = comma >= 0 ? raw.slice(0, comma) : raw
+  const rest = comma >= 0 ? raw.slice(comma) : ''
+  const colon = head.indexOf(':')
+  const volName = colon >= 0 ? head.slice(colon + 1) : `vm-${vmid}-disk-0`
+  return `${storage}:${volName}${rest}`
+}
+
+function volumeFileOnly(raw: string): string {
+  const comma = raw.indexOf(',')
+  return comma >= 0 ? raw.slice(0, comma) : raw
+}
+
+function nextUnusedKey(config: Record<string, string | number>): string {
+  let i = 0
+  while (`unused${i}` in config) i += 1
+  return `unused${i}`
+}
+
+/** Áp dụng `size` dạng `32G` hoặc `+8G` vào property string đĩa/rootfs. */
+function applyResizeToProperty(raw: string, sizeRaw: string): string {
+  const absolute = sizeRaw.startsWith('+') ? null : sizeRaw
+  const parts = raw.split(',').filter(Boolean)
+  let found = false
+  const next = parts.map((part) => {
+    if (part.startsWith('size=')) {
+      found = true
+      if (absolute) return `size=${absolute}`
+      const current = part.slice('size='.length)
+      const curBytes = sizeToBytes(current) ?? 0
+      const addBytes = sizeToBytes(sizeRaw.slice(1)) ?? 0
+      return `size=${bytesToSize(curBytes + addBytes)}`
+    }
+    return part
+  })
+  if (!found && absolute) next.push(`size=${absolute}`)
+  return next.join(',')
+}
+
+function sizeToBytes(raw: string): number | undefined {
+  const m = /^(\d+(?:\.\d+)?)([KMGT])?$/i.exec(raw.trim())
+  if (!m) return undefined
+  const n = Number(m[1])
+  const u = (m[2] ?? 'G').toUpperCase()
+  const factor: Record<string, number> = { K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 }
+  return n * (factor[u] as number)
+}
+
+function bytesToSize(bytes: number): string {
+  if (bytes >= 1024 ** 4 && bytes % 1024 ** 4 === 0) return `${bytes / 1024 ** 4}T`
+  if (bytes >= 1024 ** 3) return `${Math.round((bytes / 1024 ** 3) * 10) / 10}G`
+  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)}M`
+  return `${bytes}`
 }
 
 function guestSummary(guest: MockGuest): Record<string, unknown> {

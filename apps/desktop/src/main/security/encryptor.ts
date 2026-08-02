@@ -35,3 +35,21 @@ export class SafeStorageEncryptor implements Encryptor {
     return safeStorage.decryptString(blob)
   }
 }
+
+/**
+ * Encryptor plaintext chỉ dùng khi `PVE_E2E_MOCK_URL` — môi trường CI/headless
+ * thường không có libsecret nên `safeStorage` không sẵn sàng.
+ */
+export class E2ePlainEncryptor implements Encryptor {
+  isAvailable(): boolean {
+    return true
+  }
+
+  encrypt(plain: string): Buffer {
+    return Buffer.from(plain, 'utf8')
+  }
+
+  decrypt(blob: Buffer): string {
+    return blob.toString('utf8')
+  }
+}
