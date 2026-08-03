@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to rebuild/republish (e.g. v0.2.0). Leave empty when triggered by tag push.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -18,8 +23,29 @@ jobs:
     name: Build & publish Windows
     runs-on: windows-latest
     steps:
+      - name: Resolve tag
+        id: meta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            echo "::error::Release requires a tag (push v* or workflow_dispatch with tag input)"
+            exit 1
+          fi
+          case "$TAG" in
+            v*) VERSION="${TAG#v}" ;;
+            *) echo "::error::Tag must look like v0.2.0 (got $TAG)"; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,18 +60,55 @@ jobs:
         run: node node_modules/electron/install.js
 
       - name: Sync desktop version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: npm version "${{ steps.meta.outputs.version }}" --no-git-tag-version -w @pve/desktop
+
+      # electron-builder 26 uploads .exe / .blockmap / latest.yml in parallel; each
+      # publisher may race to create the GitHub release → duplicate releases with
+      # assets split (seen on v0.2.0: one release had only .blockmap, the other
+      # had .exe+latest.yml, and /releases/download/<tag>/… 404'd). Pre-create one
+      # draft so all uploads attach to the same release, then publish it.
+      - name: Pre-create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$VERSION" --no-git-tag-version -w @pve/desktop
+          TAG="${{ steps.meta.outputs.tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          # Drop any prior releases for this tag (broken duplicates from race).
+          mapfile -t IDS < <(gh api "repos/${{ github.repository }}/releases" \
+            --jq ".[] | select(.tag_name==\"$TAG\") | .id")
+          for id in "${IDS[@]:-}"; do
+            [ -n "$id" ] || continue
+            echo "Deleting existing release id=$id for $TAG"
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$id"
+          done
+          gh release create "$TAG" \
+            --draft \
+            --title "$VERSION" \
+            --notes "Proxmox VE Manager $VERSION" \
+            --target "$(git rev-parse HEAD)"
 
       - name: Build & publish Windows installer
         working-directory: apps/desktop
         env:
-          # GITHUB_TOKEN đủ quyền contents:write nhờ permissions ở trên.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Chưa có cert → bỏ qua auto-discover (tránh fail trên runner).
           # Khi có EV/OV: đặt secrets CSC_LINK + CSC_KEY_PASSWORD và xoá dòng này.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: npm run release:win
+
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          # Verify required auto-update assets landed on the draft.
+          ASSETS=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | join(",")')
+          echo "Assets on $TAG: $ASSETS"
+          echo "$ASSETS" | grep -q 'latest.yml' || { echo "::error::missing latest.yml"; exit 1; }
+          echo "$ASSETS" | grep -q '\.exe' || { echo "::error::missing installer .exe"; exit 1; }
+          gh release edit "$TAG" --draft=false
+          # Tag download URL must resolve (guards against split/duplicate releases).
+          curl -fsSIL "https://github.com/${{ github.repository }}/releases/download/${TAG}/latest.yml" >/dev/null

@@ -57,8 +57,9 @@ trong [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md). Chi
 **Updater:** `electron-builder.yml` đã bật `publish` → GitHub Releases
 (`phamhuyti/Proxmox-App`). Packaged app check sau 5s + nút Settings. Dev → UI
 `disabled (dev)`. CI: tag `v*` → [`.github/workflows/release.yml`](../.github/workflows/release.yml)
-build NSIS + upload release (`latest.yml`). Repo **public** → client tải
-artifact không cần token; tuỳ chọn test feed generic bằng `PVE_UPDATE_URL`.
+pre-create **draft** release → electron-builder upload → publish (tránh race
+eb26 tách asset ra 2 release). Repo **public** → client tải artifact không cần
+token; tuỳ chọn test feed generic bằng `PVE_UPDATE_URL`.
 
 **Ký số:** unsigned + tài liệu; CI dùng `CSC_LINK` / `CSC_KEY_PASSWORD` khi có cert.
 

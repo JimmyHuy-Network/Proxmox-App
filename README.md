@@ -214,6 +214,13 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
+Workflow pre-create **draft** release, `electron-builder` upload `.exe` /
+`.blockmap` / `latest.yml`, rồi publish. (eb26 upload song song dễ tạo 2 release
+cùng tag nếu chưa có draft — đã gặp ở lần `v0.2.0` đầu.)
+
+Republish tag có sẵn (sau khi sửa workflow): Actions → **Release** →
+Run workflow → nhập tag `v0.2.0`.
+
 Hoặc local (cần `GH_TOKEN` có quyền release):
 
 ```bash
