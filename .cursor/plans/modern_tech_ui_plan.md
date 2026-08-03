@@ -37,6 +37,9 @@ flowchart TD
 
 ## Mẫu Giao Diện Thiết Kế Mới (Visual UI Mockups)
 
+### App Icon Logo Design
+<img src="../../docs/ui-mockups/app_icon.png" alt="Proxmox VE Manager App Icon Design" />
+
 ### 1. Dashboard Overview & Cluster Monitor
 <img src="../../docs/ui-mockups/ui_dashboard_overview.png" alt="Dashboard Overview UI Design" />
 
