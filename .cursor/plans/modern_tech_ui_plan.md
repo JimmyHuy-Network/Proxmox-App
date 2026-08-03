@@ -38,19 +38,19 @@ flowchart TD
 ## Mẫu Giao Diện Thiết Kế Mới (Visual UI Mockups)
 
 ### 1. Dashboard Overview & Cluster Monitor
-<img src="/opt/cursor/artifacts/ui_dashboard_overview.png" alt="Dashboard Overview UI Design" />
+<img src="../../docs/ui-mockups/ui_dashboard_overview.png" alt="Dashboard Overview UI Design" />
 
 ### 2. Resource Tree & Command Palette Search
-<img src="/opt/cursor/artifacts/ui_resource_tree_search.png" alt="Resource Tree and Global Search UI Design" />
+<img src="../../docs/ui-mockups/ui_resource_tree_search.png" alt="Resource Tree and Global Search UI Design" />
 
 ### 3. Guest Management & Live Matrix Terminal Console
-<img src="/opt/cursor/artifacts/ui_guest_vm_console.png" alt="Guest VM Management and Console UI Design" />
+<img src="../../docs/ui-mockups/ui_guest_vm_console.png" alt="Guest VM Management and Console UI Design" />
 
 ### 4. Datacenter Infrastructure: SDN Topology & Firewall Matrix
-<img src="/opt/cursor/artifacts/ui_datacenter_sdn_firewall.png" alt="SDN Topology and Firewall Matrix UI Design" />
+<img src="../../docs/ui-mockups/ui_datacenter_sdn_firewall.png" alt="SDN Topology and Firewall Matrix UI Design" />
 
 ### 5. Security Vault & Access Control Matrix
-<img src="/opt/cursor/artifacts/ui_access_security_vault.png" alt="Access Control and Security Vault UI Design" />
+<img src="../../docs/ui-mockups/ui_access_security_vault.png" alt="Access Control and Security Vault UI Design" />
 
 ---
 
