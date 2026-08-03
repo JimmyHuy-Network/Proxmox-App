@@ -30,6 +30,20 @@ spawn a shell that still shows 22.14, run `nvm use default` or prepend
   Needs a display — use `DISPLAY=:1` (the VM's X server). The `dbus` and `WebGL1 blocklisted`
   errors in the Electron log are benign in this container.
 
+### Renderer crash: /dev/shm nhỏ (non-obvious, dễ tưởng nhầm là bug app)
+
+`/dev/shm` trên VM này chỉ **64 MB** (mặc định container). Mở GuestDrawer (nhiều canvas
+uPlot + noVNC) làm renderer Chromium **crash chắc chắn** — cửa sổ đen, log
+`render-process-gone { reason: 'crashed', exitCode: 5 }`. Không phải bug logic của app.
+Chạy dev với switch chuẩn của Chromium:
+
+```bash
+DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npx electron-vite dev -- --disable-dev-shm-usage
+```
+
+(từ `apps/desktop`; với electron-e2e thêm arg này vào `electron.launch`). Todo
+`stability-devshm` trong `.cursor/plans/stability_polish_plan.md` sẽ làm app tự thêm switch.
+
 ### Headless credential storage caveat (non-obvious)
 
 Electron `safeStorage` (OS keyring / libsecret) is **not available** on this headless VM, so
