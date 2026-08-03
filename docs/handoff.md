@@ -1,9 +1,10 @@
-# Bàn giao — hết GĐ 9 + Modern Hi-Tech UI
+# Bàn giao — hết GĐ 9 + Modern Hi-Tech UI + audit 08/2026
 
 Tài liệu này dành cho người (hoặc phiên làm việc) tiếp nhận dự án. Nó ghi lại **trạng thái
 hiện tại**, **những quyết định đã chốt và lý do**, và **những cái bẫy đã vấp phải**.
 
 Kế hoạch: [plan.md](plan.md) · UI mockup plan: [../.cursor/plans/modern_tech_ui_plan.md](../.cursor/plans/modern_tech_ui_plan.md) ·
+**Plan sửa lỗi sau audit: [../.cursor/plans/stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md)** ·
 Ảnh mẫu: [ui-mockups/](ui-mockups/) · Chạy thử: [../README.md](../README.md).
 
 ---
@@ -26,9 +27,10 @@ Audit source↔plan↔mockup trong §5; phần polish còn lại ở §5.4.
 ### Kiểm chứng
 
 ```bash
-npm test && npm run typecheck && npm run lint   # 265 tests (nhánh UI)
+npm test && npm run typecheck && npm run lint   # 265 passed / 9 skipped (đo lại 08/2026)
 npm run build --workspace=@pve/desktop
-ELECTRON_E2E=1 xvfb-run -a npx vitest run apps/desktop/electron-e2e   # 9/9 (main / GĐ 9)
+ELECTRON_E2E=1 xvfb-run -a npx vitest run apps/desktop/electron-e2e
+# LƯU Ý: hiện 8/9 — guest-lifecycle fail thật sau merge UI (selector snapshot), xem §7.2
 ```
 
 ```bash
@@ -40,6 +42,11 @@ DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run -w @pve/desktop dev
 
 **Caveat cloud VM:** Electron `safeStorage` không có → form “Thêm kết nối” không mã hoá được credential.
 Dùng `PVE_E2E_MOCK_URL` (hook E2E) để seed vault plain-text + auto-connect. Chi tiết [AGENTS.md](../AGENTS.md).
+
+**Caveat cloud VM (mới, 08/2026):** `/dev/shm` chỉ 64 MB → renderer **crash chắc chắn**
+(đen màn hình, `exitCode: 5`) khi mở GuestDrawer (nhiều canvas). Chạy dev với
+`npx electron-vite dev -- --disable-dev-shm-usage` cho tới khi làm todo `stability-devshm`
+trong [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md). Chi tiết §7.1.
 
 ---
 
@@ -59,11 +66,14 @@ Dùng `PVE_E2E_MOCK_URL` (hook E2E) để seed vault plain-text + auto-connect. 
 
 ## 3. Việc tiếp theo (sau GĐ 9 / ngoài UI)
 
+0. **Trước hết:** làm [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md)
+   (bug từ audit §7 — crash /dev/shm, hồi phục renderer, health chips đứng im, E2E 8/9…).
 1. Mua EV/OV; bật `publish` GitHub Releases. (`icon.png` đã = mockup; tuỳ chọn `.ico`)
-2. Virtualize Tree/table khi `huge` (400 guest) nếu profiler còn nóng.
+2. Virtualize Tree/table khi `huge` (400 guest) nếu profiler còn nóng — audit 08/2026 đo
+   GUI thực tế với 400 guest vẫn mượt (tree/search/drawer), chưa cần ưu tiên.
 3. Đối chiếu định kỳ với PVE thật — [nested-pve-hyperv.md](nested-pve-hyperv.md).
 4. Deep-link hash `?tab=` cho Access/Firewall nếu cần chia sẻ URL nội bộ.
-5. Làm các mục polish UI còn lại ở §5.4.
+5. Làm các mục polish UI còn lại ở §5.4 (đã gom vào plan mới, nhóm C).
 
 ### Điểm nối còn hiệu lực
 
@@ -274,6 +284,53 @@ Mục tiêu plan: **giống ảnh nhất có thể** trên API PVE thật; khôn
 
 ## 6. Gợi ý phiên tiếp theo
 
-1. Retest GuestDrawer + Ctrl+K trên máy GPU ổn định; nếu flaky → E2E click tree → drawer.
-2. Làm tuần tự polish §5.4 (header user/quorum → search IP → guest FW toggle) nếu muốn gần mockup hơn.
-3. Tiếp các mục §3 (ký số / publish / virtualize).
+1. Làm [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md) theo thứ tự
+   nhóm A (ổn định) → B (bug) → C (polish). Mỗi mục đã ghi rõ file + root cause ở §7.
+2. Tiếp các mục §3 (ký số / publish).
+
+---
+
+## 7. Audit 08/2026 — kết quả test & phân tích trên `main` (`29dfaaf`)
+
+Audit toàn diện: unit/typecheck/lint, electron-e2e, test GUI thủ công qua mock trên cả 3
+fixture (`cluster-3node`, `broken-cluster`, `huge`), đối chiếu 6 ảnh mockup. Việc sửa nằm ở
+[stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md); dưới đây là bằng chứng
+và root cause để phiên sau khỏi đào lại.
+
+### 7.1 Lỗi ổn định (nhóm A plan)
+
+| # | Lỗi | Root cause / bằng chứng |
+|---|---|---|
+| A1 | Renderer crash `exitCode: 5`, cửa sổ đen khi mở GuestDrawer trên cloud VM | `/dev/shm` 64 MB (mặc định container) + 4 uPlot canvas + noVNC canvas mount cùng lúc. Tái hiện 100% ở 3 phiên test; **hết hẳn** khi chạy `--disable-dev-shm-usage`. App chưa tự thêm switch này |
+| A2 | Sau crash không hồi phục; log spam mỗi 3s | `logging.ts` chỉ log `render-process-gone`, không `reload()`; `pushEvent` (main/index.ts) vẫn bắn vào webContents đã destroy → `Render frame was disposed…` lặp vô hạn. Chưa có `crashReporter` (GĐ 9 chỉ có electron-log) |
+
+### 7.2 Bug tìm thấy khi test (nhóm B plan)
+
+| # | Bug | Bằng chứng |
+|---|---|---|
+| B1 | React warning `two children with the same key, '0'` **mỗi nhịp poll 3s** | Quét fiber tree qua CDP: `dup key "0" child=CreateCtWizard` — `AppLayout` đặt `key={vmWizardKey}` / `key={ctWizardKey}`, cả hai khởi tạo `0` |
+| B2 | Chip Ceph đứng im: fixture đổi sang `broken-cluster` (`HEALTH_WARN` — mock xác nhận trả đúng) nhưng chip vẫn HEALTHY vô hạn | `cephQuery`/`joinQuery` trong `AppLayout` chỉ có `staleTime`, không `refetchInterval` → fetch đúng 1 lần khi mount |
+| B3 | electron-e2e `guest-lifecycle` fail ổn định (8/9) — claim 9/9 cũ là số trước merge UI | `.ant-card input` khớp input **ẩn** của `CpuMemoryForm` tab Overview (3-pane PR #12 giữ mounted khi đổi tab) → fill timeout |
+| B4 | 2 phiên VNC song song cho 1 guest | Overview nhúng `GuestConsoleTab`; mở tab Console mount thêm cái thứ hai; antd Tabs không destroy tab đã render |
+| B5 | Dashboard hiện `pve-cluster (3 nodes)` hardcode — mock trả tên thật `pve-lab` (`/cluster/status`) | `Dashboard.tsx` chuỗi cứng; cùng chỗ còn nhãn EN hardcode + `vi.ts` nhóm dashboard/search còn nguyên EN (gap §5.4.8 xác nhận còn) |
+
+Deprecation antd v6 trong console (Drawer `width`, Alert `message`) — nhóm C plan.
+
+### 7.3 Đã test OK (không cần động)
+
+- Dashboard đủ panel theo mockup, timeframe 1h/1d/1w đổi chart đúng; không NaN/undefined.
+- Ctrl+K: nhóm QEMU/LXC/Storage/Nodes, LED, Start/Stop/Console, storage %; lọc nhanh.
+- GuestDrawer 3-pane: action bar, LED+uptime, hardware summary, 4 RRD, console noVNC
+  kết nối hiển thị nội dung, form CPU/RAM. Snapshot tạo `test1` OK; start guest → TaskDock
+  RUNNING→OK, LED xanh ~3–5s (sau khi có `--disable-dev-shm-usage`).
+- `broken-cluster`: chip Cluster chuyển warn, tree pve3 LED đỏ, cards 2/3 online, NodeDrawer
+  node offline không crash. (Chip Ceph là B2.)
+- `huge` 8 node/400 guest: tree scroll mượt, filter/search <0.5s, drawer <1s — chưa cần virtualize.
+- Firewall/Access/SDN/Settings render đủ skin như §5; hiệu ứng glass/LED/neon đúng palette.
+
+### 7.4 Không phải bug
+
+- Lỗi credential trên cloud VM ("safeStorage chưa sẵn sàng") = hạn chế headless đã ghi
+  AGENTS.md — dùng hook `PVE_E2E_MOCK_URL`.
+- Mock trả đủ status/RRD cho node offline (PVE thật trả lỗi) — chỉ là realism của mock,
+  tuỳ chọn siết sau.
