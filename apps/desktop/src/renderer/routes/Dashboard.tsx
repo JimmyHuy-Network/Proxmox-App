@@ -1,7 +1,7 @@
-import { Button, Card, Empty, Flex, Progress, Space, Table, Tag, Typography } from 'antd'
-import { ApiOutlined, ArrowRightOutlined } from '@ant-design/icons'
+import { Button, Card, Empty, Flex, Progress, Segmented, Space, Table, Tag, Typography } from 'antd'
+import { ApiOutlined, ArrowRightOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useNavigate } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useConnections } from '../stores/connections'
@@ -45,6 +45,8 @@ export function Dashboard(): React.JSX.Element {
   const select = useSelection((s) => s.select)
   const byUpid = useTasks((s) => s.byUpid)
   const runningTasks = useMemo(() => recentTasks(byUpid, 50).filter((x) => x.phase !== 'done').length, [byUpid])
+
+  const [timeframe, setTimeframe] = useState<'hour' | 'day' | 'week'>('hour')
 
   const connected = activeId !== null && phases[activeId] === 'authenticated'
   const { resources, at } = useClusterResources(connected ? activeId : null)
@@ -98,12 +100,12 @@ export function Dashboard(): React.JSX.Element {
   const rrdQuery = useQuery({
     queryKey:
       connected && rrdNode
-        ? pveQueryKey(activeId!, 'GET', '/nodes/{node}/rrddata', { node: rrdNode, timeframe: 'hour' })
+        ? pveQueryKey(activeId!, 'GET', '/nodes/{node}/rrddata', { node: rrdNode, timeframe })
         : ['dash-rrd', 'idle'],
     queryFn: () =>
       pveRequest<Record<string, number>[]>(activeId!, 'GET', '/nodes/{node}/rrddata', {
         node: rrdNode!,
-        timeframe: 'hour',
+        timeframe,
       }),
     enabled: connected && Boolean(rrdNode),
     refetchInterval: 30_000,
@@ -111,12 +113,15 @@ export function Dashboard(): React.JSX.Element {
   const rrdPoints = rrdQuery.data ?? []
 
   const logQuery = useQuery({
-    queryKey: connected ? pveQueryKey(activeId!, 'GET', '/cluster/log', { max: 8 }) : ['dash-log', 'idle'],
-    queryFn: () => pveRequest<ClusterLogRow[]>(activeId!, 'GET', '/cluster/log', { max: 8 }),
+    queryKey: connected ? pveQueryKey(activeId!, 'GET', '/cluster/log', { max: 20 }) : ['dash-log', 'idle'],
+    queryFn: () => pveRequest<ClusterLogRow[]>(activeId!, 'GET', '/cluster/log', { max: 20 }),
     enabled: connected,
     refetchInterval: 15_000,
   })
-  const alerts = (logQuery.data ?? []).filter((row) => (row.pri ?? 99) <= 5).slice(0, 5)
+  const alerts = (logQuery.data ?? []).filter((row) => (row.pri ?? 99) <= 5).slice(0, 6)
+
+  const timeframeLabel =
+    timeframe === 'hour' ? t('dashboard.timeframeHour') : timeframe === 'day' ? t('dashboard.timeframeDay') : t('dashboard.timeframeWeek')
 
   if (!connected) {
     return (
@@ -146,10 +151,10 @@ export function Dashboard(): React.JSX.Element {
 
   const summaryCards = [
     { label: t('dashboard.nodesOnline'), value: `${nodesOnline}/${nodes.length}`, hint: 'Online' },
-    { label: t('dashboard.vms'), value: String(vms.length), hint: `${vmsRunning}/${vms.length}` },
-    { label: t('dashboard.cts'), value: String(cts.length), hint: `${ctsRunning}/${cts.length}` },
+    { label: t('dashboard.vms'), value: String(vms.length), hint: `Running ${vmsRunning}/${vms.length}` },
+    { label: t('dashboard.cts'), value: String(cts.length), hint: `Running ${ctsRunning}/${cts.length}` },
     { label: t('dashboard.storageActive'), value: String(storageActive), hint: 'Active' },
-    { label: t('dashboard.uptime'), value: fmtUptime(maxUptime), hint: t('dashboard.timeframeHour') },
+    { label: t('dashboard.uptime'), value: fmtUptime(maxUptime), hint: 'Cluster uptime' },
   ]
 
   return (
@@ -160,9 +165,29 @@ export function Dashboard(): React.JSX.Element {
             {t('dashboard.title')}
           </Typography.Title>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {nodes.length} nodes · {t('dashboard.timeframeHour')}
+            pve-cluster ({nodes.length} nodes) · {timeframeLabel}
           </Typography.Text>
         </div>
+        <Space>
+          <Segmented
+            size="small"
+            value={timeframe}
+            onChange={(v) => setTimeframe(v as 'hour' | 'day' | 'week')}
+            options={[
+              { label: '1h', value: 'hour' },
+              { label: '1d', value: 'day' },
+              { label: '1w', value: 'week' },
+            ]}
+          />
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              void rrdQuery.refetch()
+              void logQuery.refetch()
+            }}
+          />
+        </Space>
       </Flex>
 
       <Flex gap={12} wrap>
@@ -278,18 +303,29 @@ export function Dashboard(): React.JSX.Element {
         <Card className="tech-glass-card" size="small" title={t('dashboard.quickMetrics')} style={{ flex: 1, minWidth: 180 }}>
           <Flex vertical gap={10}>
             <Flex justify="space-between">
+              <Typography.Text type="secondary">Cores</Typography.Text>
+              <span className="tech-mono">{cpuTotal}</span>
+            </Flex>
+            <Flex justify="space-between">
+              <Typography.Text type="secondary">RAM</Typography.Text>
+              <span className="tech-mono">{formatBytes(memTotal)}</span>
+            </Flex>
+            <Flex justify="space-between">
+              <Typography.Text type="secondary">Storage</Typography.Text>
+              <span className="tech-mono">{formatBytes(diskTotal)}</span>
+            </Flex>
+            <Flex justify="space-between">
               <Typography.Text type="secondary">{t('dashboard.runningTasks')}</Typography.Text>
               <Tag className="tech-tag-running">{runningTasks}</Tag>
             </Flex>
             <Flex justify="space-between">
               <Typography.Text type="secondary">{t('dashboard.nodesOnline')}</Typography.Text>
-              <span className="tech-mono">
-                {nodesOnline}/{nodes.length}
-              </span>
-            </Flex>
-            <Flex justify="space-between">
-              <Typography.Text type="secondary">{t('dashboard.storageActive')}</Typography.Text>
-              <span className="tech-mono">{storageActive}</span>
+              <Space size={4}>
+                <LedDot kind={nodesOnline === nodes.length && nodes.length > 0 ? 'online' : 'warn'} />
+                <span className="tech-mono">
+                  {nodesOnline}/{nodes.length}
+                </span>
+              </Space>
             </Flex>
             <Flex justify="space-between">
               <Typography.Text type="secondary">Guests</Typography.Text>
@@ -302,9 +338,15 @@ export function Dashboard(): React.JSX.Element {
       </Flex>
 
       <Card
-        className="tech-glass-card"
+        className="tech-glass-card neon-border"
         size="small"
-        title={t('dashboard.recentAlerts')}
+        title={
+          <Space>
+            <LedDot kind={alerts.length ? 'warn' : 'online'} />
+            {t('dashboard.recentAlerts')}
+            {alerts.length > 0 ? <Tag className="tech-tag-fail">{alerts.length}</Tag> : null}
+          </Space>
+        }
         extra={
           <Button type="link" size="small" icon={<ArrowRightOutlined />} onClick={() => void navigate({ to: '/cluster-log' })}>
             {t('dashboard.viewAllAlerts')}
@@ -314,14 +356,20 @@ export function Dashboard(): React.JSX.Element {
         {alerts.length === 0 ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="—" />
         ) : (
-          <Flex vertical gap={6}>
+          <Flex vertical gap={8}>
             {alerts.map((a, idx) => (
-              <Flex key={`${a.uid}-${a.time ?? idx}-${idx}`} gap={8} align="center">
+              <Flex
+                key={`${a.uid}-${a.time ?? idx}-${idx}`}
+                gap={8}
+                align="center"
+                className="neon-border"
+                style={{ padding: '6px 10px', borderRadius: 8 }}
+              >
                 <LedDot kind={(a.pri ?? 99) <= 3 ? 'error' : 'warn'} />
-                <Typography.Text className="tech-mono" type="secondary" style={{ fontSize: 11, width: 70 }}>
+                <Typography.Text className="tech-mono" type="secondary" style={{ fontSize: 11, width: 72 }}>
                   {a.time ? new Date(a.time * 1000).toLocaleTimeString() : '—'}
                 </Typography.Text>
-                <Tag>{a.node ?? a.tag ?? '—'}</Tag>
+                <Tag color={(a.pri ?? 99) <= 3 ? 'error' : 'warning'}>{a.node ?? a.tag ?? '—'}</Tag>
                 <Typography.Text ellipsis style={{ flex: 1, fontSize: 12 }}>
                   {a.msg}
                 </Typography.Text>

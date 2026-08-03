@@ -126,18 +126,15 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
             </Typography.Text>
           </Flex>
         }
-        className="neon-border-active"
+        className="neon-border-active tech-search-modal"
         styles={{
           body: {
-            background: 'rgba(18, 24, 38, 0.92)',
+            background: 'transparent',
           },
           mask: {
-            backdropFilter: 'blur(6px)',
+            backdropFilter: 'blur(8px)',
+            background: 'rgba(5, 10, 20, 0.65)',
           },
-        }}
-        style={{
-          border: `1px solid ${PVE_COLORS.cyanBorder}`,
-          boxShadow: `0 0 24px ${PVE_COLORS.cyanGlow}`,
         }}
       >
         <Input

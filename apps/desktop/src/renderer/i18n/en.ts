@@ -63,6 +63,8 @@ export const en: TranslationSchema = {
     ofCores: '{{used}} / {{total}} cores',
     ofBytes: '{{used}} / {{total}}',
     timeframeHour: 'Last 1 hour',
+    timeframeDay: 'Last 1 day',
+    timeframeWeek: 'Last 1 week',
   },
   search: {
     title: 'Global Resource Search',

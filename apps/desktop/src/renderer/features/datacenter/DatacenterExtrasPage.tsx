@@ -119,28 +119,63 @@ function SdnTab({
         </div>
       </Space>
       {(vnetsQ.data?.length ?? 0) > 0 ? (
-        <div className="neon-border" style={{ padding: 12, borderRadius: 10 }}>
+        <div className="sdn-topo-wrap">
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            Topology (zones → vnets)
+            Network Topology (zones → vnets)
           </Typography.Text>
-          <svg width="100%" height={Math.max(120, (zonesQ.data?.length ?? 1) * 48)} style={{ marginTop: 8 }}>
+          <svg
+            width="100%"
+            height={Math.max(160, (zonesQ.data?.length ?? 1) * 72 + 40)}
+            style={{ marginTop: 10 }}
+          >
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <circle cx="48" cy="28" r="10" fill="rgba(0,242,254,0.25)" stroke="#00f2fe" filter="url(#glow)" />
+            <text x="68" y="32" fill="#00f2fe" fontSize={11}>
+              Edge
+            </text>
             {(zonesQ.data ?? []).map((z, i) => {
               const zone = String(z.zone ?? '')
               const children = (vnetsQ.data ?? []).filter((v) => String(v.zone) === zone)
-              const y = 24 + i * 48
+              const y = 64 + i * 72
               return (
                 <g key={zone || i}>
-                  <rect x={8} y={y - 14} width={120} height={28} rx={6} fill="rgba(0,242,254,0.12)" stroke="rgba(0,242,254,0.35)" />
-                  <text x={68} y={y + 4} textAnchor="middle" fill="#00f2fe" fontSize={11}>
+                  <line x1="48" y1="38" x2="48" y2={y} stroke="rgba(0,242,254,0.25)" strokeDasharray="4 3" />
+                  <rect
+                    x={16}
+                    y={y - 18}
+                    width={140}
+                    height={36}
+                    rx={8}
+                    fill="rgba(0,242,254,0.12)"
+                    stroke="rgba(0,242,254,0.55)"
+                    filter="url(#glow)"
+                  />
+                  <text x={86} y={y + 4} textAnchor="middle" fill="#00f2fe" fontSize={12} fontWeight={600}>
                     {zone}
                   </text>
                   {children.map((v, j) => {
-                    const vx = 200 + j * 110
+                    const vx = 220 + j * 130
                     return (
                       <g key={String(v.vnet)}>
-                        <line x1={128} y1={y} x2={vx} y2={y} stroke="rgba(255,107,0,0.45)" />
-                        <rect x={vx} y={y - 12} width={96} height={24} rx={6} fill="rgba(255,107,0,0.1)" stroke="rgba(255,107,0,0.35)" />
-                        <text x={vx + 48} y={y + 4} textAnchor="middle" fill="#ffb020" fontSize={10}>
+                        <line x1={156} y1={y} x2={vx} y2={y} stroke="rgba(255,107,0,0.55)" strokeWidth={1.5} />
+                        <rect
+                          x={vx}
+                          y={y - 16}
+                          width={110}
+                          height={32}
+                          rx={8}
+                          fill="rgba(255,107,0,0.12)"
+                          stroke="rgba(255,107,0,0.5)"
+                        />
+                        <text x={vx + 55} y={y + 4} textAnchor="middle" fill="#ffb020" fontSize={11}>
                           {String(v.vnet)}
                         </text>
                       </g>

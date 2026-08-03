@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { App, Button, Card, Checkbox, Form, Input, Modal, Select, Space, Tabs, Tag, Typography } from 'antd'
+import { App, Button, Card, Checkbox, Flex, Form, Input, Modal, Select, Space, Tabs, Tag, Typography } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PveGrid } from '../../components/PveGrid'
@@ -93,6 +93,8 @@ export function AccessPage(): React.JSX.Element {
 }
 
 function AccessSummaryCards({ connectionId }: { connectionId: string }): React.JSX.Element {
+  const { t } = useTranslation()
+  const active = useConnections((s) => s.connections.find((c) => c.id === connectionId))
   const usersQ = useQuery({
     queryKey: pveQueryKey(connectionId, 'GET', '/access/users', {}),
     queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/access/users', {}),
@@ -102,32 +104,146 @@ function AccessSummaryCards({ connectionId }: { connectionId: string }): React.J
     queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/access/tfa', {}),
     retry: false,
   })
-  const userCount = usersQ.data?.length ?? 0
+  const rolesQ = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/access/roles', {}),
+    queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/access/roles', {}),
+  })
+  const aclQ = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/access/acl', {}),
+    queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/access/acl', {}),
+  })
+  const firstNode = 'pve1'
+  const certQ = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/nodes/{node}/certificates/info', { node: firstNode }),
+    queryFn: () =>
+      pveRequest<Row[]>(connectionId, 'GET', '/nodes/{node}/certificates/info', { node: firstNode }),
+    retry: false,
+  })
+
+  const users = usersQ.data ?? []
   const tfaCount = Array.isArray(tfaQ.data) ? tfaQ.data.length : 0
+  const roles = (rolesQ.data ?? []).map((r) => String(r.roleid ?? '')).filter(Boolean).slice(0, 6)
+  const acl = aclQ.data ?? []
+  const matrixUsers = users.slice(0, 8).map((u) => String(u.userid ?? ''))
+  const cert = Array.isArray(certQ.data) ? certQ.data[0] : undefined
 
   return (
-    <Space wrap style={{ marginTop: 12 }}>
-      <Card size="small" className="neon-border" style={{ minWidth: 140 }}>
-        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-          Users
-        </Typography.Text>
-        <div className="tech-mono" style={{ fontSize: 20 }}>
-          {userCount}
-        </div>
-      </Card>
-      <Card size="small" className="neon-border" style={{ minWidth: 140 }}>
-        <Space>
-          <LedDot kind={tfaCount > 0 ? 'online' : 'stopped'} />
-          <div>
-            <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-              TFA entries
-            </Typography.Text>
-            <div className="tech-mono" style={{ fontSize: 20 }}>
-              {tfaCount}
-            </div>
+    <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 12 }}>
+      <Space wrap>
+        <Card size="small" className="neon-border" style={{ minWidth: 130 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            Users
+          </Typography.Text>
+          <div className="tech-mono" style={{ fontSize: 20 }}>
+            {users.length}
           </div>
-        </Space>
-      </Card>
+        </Card>
+        <Card size="small" className="neon-border" style={{ minWidth: 130 }}>
+          <Space>
+            <LedDot kind={tfaCount > 0 ? 'online' : 'stopped'} />
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                TFA
+              </Typography.Text>
+              <div className="tech-mono" style={{ fontSize: 20 }}>
+                {tfaCount > 0 ? 'ENABLED' : '—'}
+              </div>
+            </div>
+          </Space>
+        </Card>
+        <Card size="small" className="neon-border" style={{ minWidth: 130 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            Roles
+          </Typography.Text>
+          <div className="tech-mono" style={{ fontSize: 20 }}>
+            {rolesQ.data?.length ?? '—'}
+          </div>
+        </Card>
+        <Card size="small" className="neon-border" style={{ minWidth: 130 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            ACL
+          </Typography.Text>
+          <div className="tech-mono" style={{ fontSize: 20 }}>
+            {acl.length}
+          </div>
+        </Card>
+      </Space>
+
+      <Flex gap={12} wrap>
+        <Card
+          size="small"
+          className="tech-glass-card"
+          title="Permission matrix"
+          style={{ flex: 2, minWidth: 320 }}
+        >
+          {matrixUsers.length === 0 || roles.length === 0 ? (
+            <Typography.Text type="secondary">—</Typography.Text>
+          ) : (
+            <table className="vault-matrix" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: 6 }}>User</th>
+                  {roles.map((role) => (
+                    <th key={role} style={{ padding: 6 }}>
+                      {role}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matrixUsers.map((userid) => (
+                  <tr key={userid}>
+                    <td style={{ textAlign: 'left', padding: 6 }} className="tech-mono">
+                      {userid}
+                    </td>
+                    {roles.map((role) => {
+                      const hit = acl.some(
+                        (a) =>
+                          String(a.ugid ?? '') === userid &&
+                          String(a.roleid ?? '') === role,
+                      )
+                      return (
+                        <td key={role} style={{ padding: 6 }}>
+                          <span className={hit ? 'matrix-cell-full' : 'matrix-cell-none'}>
+                            {hit ? '✓' : '—'}
+                          </span>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+
+        <Card
+          size="small"
+          className="tech-glass-card neon-border"
+          title={t('cert.title')}
+          style={{ flex: 1, minWidth: 260 }}
+        >
+          {cert ? (
+            <Space direction="vertical" size={6} style={{ width: '100%' }}>
+              <Space>
+                <LedDot kind="online" />
+                <Tag className="tech-tag-ok">TRUSTED</Tag>
+              </Space>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                {active?.host ?? firstNode}:8006
+              </Typography.Text>
+              <Typography.Text className="tech-mono" style={{ fontSize: 11 }} copyable>
+                {String(cert.fingerprint ?? cert.filename ?? cert.subject ?? '—')}
+              </Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                {String(cert.issuer ?? cert['issuer'] ?? '')}
+              </Typography.Text>
+            </Space>
+          ) : (
+            <Typography.Text type="secondary">{t('nav.healthUnknown')}</Typography.Text>
+          )}
+        </Card>
+      </Flex>
     </Space>
   )
 }

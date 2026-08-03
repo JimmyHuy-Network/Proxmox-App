@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { App, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Tabs, Tag, Typography } from 'antd'
 import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PveGrid } from '../../components/PveGrid'
 import { PveForm } from '../../components/PveForm'
@@ -30,13 +30,14 @@ export function FirewallPage(): React.JSX.Element {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <div className="tech-glass-card" style={{ padding: 16 }}>
+      <div className="tech-glass-card neon-border" style={{ padding: 16 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
           {t('nav.firewall')}
         </Typography.Title>
-        <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
+        <Typography.Paragraph type="secondary" style={{ margin: '8px 0 12px' }}>
           {t('firewall.hint')}
         </Typography.Paragraph>
+        <FirewallSummary connectionId={activeId} />
       </div>
       <div className="tech-glass-card" style={{ padding: 12 }}>
       <Tabs
@@ -76,6 +77,57 @@ export function FirewallPage(): React.JSX.Element {
       />
       </div>
     </Space>
+  )
+}
+
+function FirewallSummary({ connectionId }: { connectionId: string }): React.JSX.Element {
+  const rulesQ = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/cluster/firewall/rules', {}),
+    queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/cluster/firewall/rules', {}),
+  })
+  const rules = rulesQ.data ?? []
+  const enabled = rules.filter((r) => r.enable === 1 || r.enable === '1' || r.enable === true).length
+  const accept = rules.filter((r) => String(r.action).toUpperCase() === 'ACCEPT').length
+  const drop = rules.filter((r) => {
+    const a = String(r.action).toUpperCase()
+    return a === 'DROP' || a === 'REJECT'
+  }).length
+
+  return (
+    <div className="fw-summary-row">
+      <div className="fw-summary-chip neon-border">
+        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+          Rules
+        </Typography.Text>
+        <div className="tech-mono" style={{ fontSize: 20 }}>
+          {rules.length}
+        </div>
+      </div>
+      <div className="fw-summary-chip neon-border">
+        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+          Enabled
+        </Typography.Text>
+        <div className="tech-mono" style={{ fontSize: 20, color: 'var(--pve-cyan)' }}>
+          {enabled}
+        </div>
+      </div>
+      <div className="fw-summary-chip neon-border">
+        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+          ACCEPT
+        </Typography.Text>
+        <div className="tech-mono" style={{ fontSize: 20, color: 'var(--pve-success)' }}>
+          {accept}
+        </div>
+      </div>
+      <div className="fw-summary-chip neon-border">
+        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+          DROP/REJECT
+        </Typography.Text>
+        <div className="tech-mono" style={{ fontSize: 20, color: 'var(--pve-error)' }}>
+          {drop}
+        </div>
+      </div>
+    </div>
   )
 }
 
