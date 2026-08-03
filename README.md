@@ -145,8 +145,7 @@ Trên VM không có OS keyring, UI “Thêm kết nối” không mã hoá đư�
 (seed vault plaintext + tự kết nối mock):
 
 ```bash
-DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run -w @pve/desktop dev
-# hoặc: npm run dev   (tương đương qua workspace root)
+DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
 ```
 
 Tuỳ chọn: `PVE_E2E_USER` (mặc định `root@pam`), `PVE_E2E_PASSWORD` (mặc định `x`).
