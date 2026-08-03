@@ -103,8 +103,7 @@ describe.skipIf(!enabled)('Playwright electron guest lifecycle', () => {
       await drawer.getByText(/Đang chạy|Running/i).first().waitFor({ timeout: 60_000 })
 
       await page.getByRole('tab', { name: /Snapshot/i }).click()
-      const snapPane = drawer.locator('.ant-tabs-tabpane-active')
-      await snapPane.locator('input').first().fill('pw-snap')
+      await drawer.getByTestId('snapshot-name-input').fill('pw-snap')
       await drawer.getByRole('button', { name: /Tạo snapshot|Create snapshot/i }).click()
       await drawer.getByText('pw-snap').first().waitFor({ timeout: 45_000 })
 

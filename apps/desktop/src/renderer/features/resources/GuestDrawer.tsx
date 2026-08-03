@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   App,
   Button,
@@ -70,14 +70,13 @@ export function GuestDrawer(): React.JSX.Element {
   const guestTargetTab = useSelection((s) => s.guestTargetTab)
   const clearGuestTargetTab = useSelection((s) => s.clearGuestTargetTab)
   const activeId = useConnections((s) => s.activeId)
-  const [tab, setTab] = useState('overview')
+  const [localTab, setLocalTab] = useState('overview')
+  const tab = guestTargetTab ?? localTab
 
-  useEffect(() => {
-    if (guestTargetTab) {
-      setTab(guestTargetTab)
-      clearGuestTargetTab()
-    }
-  }, [guestTargetTab, clearGuestTargetTab, guest?.id])
+  const setTab = (key: string): void => {
+    clearGuestTargetTab()
+    setLocalTab(key)
+  }
 
   const open = guest !== null && activeId !== null
   const type = guest?.type as 'qemu' | 'lxc' | undefined
@@ -184,7 +183,8 @@ export function GuestDrawer(): React.JSX.Element {
       }
       open={open}
       onClose={() => {
-        setTab('overview')
+        clearGuestTargetTab()
+        setLocalTab('overview')
         select(null)
       }}
       size={drawerWidth}
