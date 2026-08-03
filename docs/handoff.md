@@ -23,7 +23,7 @@ MVP — parity tính năng lớn đã có từ GĐ 0–8; GĐ 9 bổ sung vận 
 | **A11y** (aria trên action buttons, search) | Xong mức tối thiểu, GĐ 9 |
 | **Perf** (bỏ qua set resources khi signature giống) | Xong, GĐ 9 |
 | **Tài liệu** nested PVE + quyết định ký số | Xong, GĐ 9 |
-| **Ký số Windows / icon riêng** | Chưa mua cert — xem [decision-windows-signing.md](decision-windows-signing.md) |
+| **Ký số Windows** | Chưa mua cert — xem [decision-windows-signing.md](decision-windows-signing.md); `icon.png` đã có trên main |
 
 ### Kiểm chứng (đã chạy trên cloud agent)
 
@@ -58,7 +58,7 @@ DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
 
 ## 3. Việc tiếp theo (sau GĐ 9)
 
-1. Mua EV/OV + icon; bật `publish` GitHub Releases.
+1. Mua EV/OV; bật `publish` GitHub Releases. (`icon.png` đã có — tuỳ chọn thêm `.ico`)
 2. Virtualize Tree/table khi `huge` (400 guest) nếu profiler còn nóng.
 3. Đối chiếu định kỳ với PVE thật — [nested-pve-hyperv.md](nested-pve-hyperv.md).
 4. Deep-link hash `?tab=` cho Access/Firewall nếu cần chia sẻ URL nội bộ.
@@ -74,5 +74,5 @@ DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
 ## 4. Câu hỏi để ngỏ
 
 1. Chứng chỉ ký số EV vs OV (xem decision doc).
-2. Icon thương hiệu riêng.
+2. (Tuỳ chọn) `icon.ico` cho NSIS nếu builder không derive đủ từ png.
 3. Kênh update: GitHub Releases hay generic URL nội bộ.
