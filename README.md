@@ -2,12 +2,17 @@
 
 Ứng dụng desktop (Electron) quản lý Proxmox VE — mục tiêu đầy đủ tính năng như web UI gốc.
 
-> **Trạng thái: hết giai đoạn 9** (hardening & phát hành MVP). Giai đoạn 0–8 đã merge — Access /
-> Firewall / SDN / HA / replication / notify / metrics + cap UI. GĐ 9 thêm auto-update wiring,
-> logging/crash hooks, phím tắt, Settings/i18n, tài liệu ký số & nested PVE.
+> **Trạng thái: hết giai đoạn 9** + **Modern Hi-Tech UI** đã merge. Giai đoạn 0–8 = Access /
+> Firewall / SDN / HA / replication / notify / metrics + cap UI. GĐ 9 = auto-update wiring,
+> logging/crash hooks, phím tắt, Settings/i18n, tài liệu ký số & nested PVE. UI refresh
+> (Obsidian + cyan/orange glow, glass, LED, dashboard gauges, Ctrl+K search, guest 3-pane)
+> bám ảnh mẫu trong [`docs/ui-mockups/`](docs/ui-mockups/) — chi tiết đã/chưa làm ở
+> [`docs/handoff.md`](docs/handoff.md) §5.
 
 Chi tiết bàn giao: [`docs/handoff.md`](docs/handoff.md) · kế hoạch: [`docs/plan.md`](docs/plan.md) ·
-ký số: [`docs/decision-windows-signing.md`](docs/decision-windows-signing.md) · PVE lab:
+UI mockups: [`docs/ui-mockups/`](docs/ui-mockups/) · kế hoạch UI:
+[`.cursor/plans/modern_tech_ui_plan.md`](.cursor/plans/modern_tech_ui_plan.md) · ký số:
+[`docs/decision-windows-signing.md`](docs/decision-windows-signing.md) · PVE lab:
 [`docs/nested-pve-hyperv.md`](docs/nested-pve-hyperv.md).
 
 ---
@@ -131,13 +136,17 @@ npm run dev
 Trong app: **Kết nối** → **Thêm kết nối** → host `127.0.0.1`, port `8006`, user `root@pam`,
 mật khẩu bất kỳ (trừ `sai`). Tin tưởng chứng chỉ tự ký (TOFU) → cây Datacenter/node/guest hiện.
 
+Phím tắt hữu ích khi smoke: **Ctrl+K** (Global Search) · **Ctrl+,** (Settings) ·
+**Ctrl+3** Access · **Ctrl+4** Firewall · **Ctrl+5** Datacenter.
+
 ### Headless / không có libsecret
 
 Trên VM không có OS keyring, UI “Thêm kết nối” không mã hoá được credential. Dùng hook E2E
 (seed vault plaintext + tự kết nối mock):
 
 ```bash
-DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
+DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run -w @pve/desktop dev
+# hoặc: npm run dev   (tương đương qua workspace root)
 ```
 
 Tuỳ chọn: `PVE_E2E_USER` (mặc định `root@pam`), `PVE_E2E_PASSWORD` (mặc định `x`).
