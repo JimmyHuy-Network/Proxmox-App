@@ -37,8 +37,7 @@ nsis:
 
 # Auto-update: electron-builder ghi app-update.yml khi đóng gói; electron-updater
 # đọc feed GitHub Releases (latest.yml + artifact). CI: tag v* → workflow Release.
-# Repo đang private → client cần GH_TOKEN (hoặc repo public) để tải release;
-# xem docs/handoff.md § updater.
+# Repo public → client tải release không cần token. Xem docs/handoff.md § updater.
 publish:
   provider: github
   owner: phamhuyti

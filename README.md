@@ -227,8 +227,8 @@ Bản cài packaged tự `checkForUpdates` (GitHub `latest.yml`). Dev build hi�
 PVE_UPDATE_URL=https://example.com/updates npm run dev
 ```
 
-**Lưu ý:** repo đang private — client update cần `GH_TOKEN` trên máy người dùng
-(hoặc mở public repo) để electron-updater đọc release. Ký số: xem
+**Lưu ý:** repo **public** — electron-updater trên máy người dùng đọc GitHub
+Releases không cần token. Ký số: xem
 [`docs/decision-windows-signing.md`](docs/decision-windows-signing.md).
 
 ---
