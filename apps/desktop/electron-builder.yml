@@ -22,7 +22,7 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: Proxmox-VE-Manager-${version}-${arch}.${ext}
   # Ký số: xem docs/decision-windows-signing.md. Đặt CSC_LINK + CSC_KEY_PASSWORD khi có cert.
   # icon: resources/icon.ico (tuỳ chọn — thiếu thì electron-builder dùng mặc định)
 
@@ -37,9 +37,10 @@ nsis:
 
 # Auto-update: electron-builder ghi app-update.yml khi đóng gói; electron-updater
 # đọc feed GitHub Releases (latest.yml + artifact). CI: tag v* → workflow Release.
-# Repo public → client tải release không cần token. Xem docs/handoff.md § updater.
+# releaseType: draft — CI pre-create draft rồi publish sau upload (tránh race
+# electron-builder 26 tạo 2 release / tách asset). Repo public → client không cần token.
 publish:
   provider: github
   owner: phamhuyti
   repo: Proxmox-App
-  releaseType: release
+  releaseType: draft
