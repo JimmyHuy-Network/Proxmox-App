@@ -59,6 +59,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
   const selectedStorage = useSelection((s) => s.selectedStorage)
   const selectedNode = useSelection((s) => s.selectedNode)
   const selectedKey = selectedGuest?.id ?? selectedStorage?.id ?? selectedNode?.id
+  const selectedTreeKey = selectedKey ? `res:${selectedKey}` : undefined
 
   const treeData = useMemo<DataNode[]>(() => {
     const rows = resources as ClusterResource[]
@@ -74,7 +75,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
           return (a.vmid ?? 0) - (b.vmid ?? 0) || (a.name ?? a.storage ?? '').localeCompare(b.name ?? b.storage ?? '')
         })
         .map((r) => ({
-          key: r.id,
+          key: `res:${r.id}`,
           isLeaf: true,
           selectable: isGuest(r) || r.type === 'storage',
           title: isGuest(r) ? (
@@ -106,7 +107,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
       if (query.trim() !== '' && children.length === 0) continue
       const nodeName = n.node ?? ''
       nodeEntries.push({
-        key: n.id,
+        key: `res:${n.id}`,
         selectable: true,
         title: (
           <Flex
@@ -177,10 +178,11 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
         <Tree
           treeData={treeData}
           defaultExpandedKeys={allNodeKeys}
-          selectedKeys={selectedKey ? [selectedKey] : []}
+          selectedKeys={selectedTreeKey ? [selectedTreeKey] : []}
           expandAction="doubleClick"
           onSelect={(_keys, info) => {
-            const resource = (resources as ClusterResource[]).find((r) => r.id === info.node.key)
+            const raw = String(info.node.key).replace(/^res:/, '')
+            const resource = (resources as ClusterResource[]).find((r) => r.id === raw)
             if (!resource) return
             if (resource.type === 'node' || isGuest(resource) || resource.type === 'storage') {
               select(resource)

@@ -345,7 +345,7 @@ export function AppLayout(): React.JSX.Element {
           {connected && activeId && (
             <>
               <Divider style={{ margin: '4px 0', borderColor: token.colorBorderSecondary }} />
-              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div className="resource-tree-host">
                 <ResourceTree connectionId={activeId} />
               </div>
             </>

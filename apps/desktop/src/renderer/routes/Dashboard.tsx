@@ -315,8 +315,8 @@ export function Dashboard(): React.JSX.Element {
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="—" />
         ) : (
           <Flex vertical gap={6}>
-            {alerts.map((a) => (
-              <Flex key={a.uid} gap={8} align="center">
+            {alerts.map((a, idx) => (
+              <Flex key={`${a.uid}-${a.time ?? idx}-${idx}`} gap={8} align="center">
                 <LedDot kind={(a.pri ?? 99) <= 3 ? 'error' : 'warn'} />
                 <Typography.Text className="tech-mono" type="secondary" style={{ fontSize: 11, width: 70 }}>
                   {a.time ? new Date(a.time * 1000).toLocaleTimeString() : '—'}

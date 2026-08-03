@@ -178,8 +178,19 @@ code,
   border-radius: 6px;
 }
 
-.ant-layout-sider .ant-menu-item-selected {
-  box-shadow: inset 2px 0 0 var(--pve-cyan);
+.ant-layout-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ant-layout-sider .resource-tree-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .ant-layout-header.tech-header {

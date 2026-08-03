@@ -57,7 +57,7 @@ interface SnapshotListItem {
 }
 
 /**
- * Guest workspace rộng — action bar, 4 RRD, console, hardware side panel (bám mockup).
+ * Guest workspace rộng — action bar, 4 RRD, console entry, hardware side panel.
  */
 export function GuestDrawer(): React.JSX.Element {
   const { t } = useTranslation()
@@ -125,7 +125,11 @@ export function GuestDrawer(): React.JSX.Element {
   const canPower = can('VM.PowerMgmt', vmid !== undefined ? `/vms/${vmid}` : '/')
   const canAllocate = can('VM.Allocate', vmid !== undefined ? `/vms/${vmid}` : '/')
   const canModifyFw = can('Sys.Modify', '/')
-  const canConfig = can('VM.Config.CPU', vmid !== undefined ? `/vms/${vmid}` : '/') || can('VM.Config.Memory', vmid !== undefined ? `/vms/${vmid}` : '/')
+  const canConfig =
+    can('VM.Config.CPU', vmid !== undefined ? `/vms/${vmid}` : '/') ||
+    can('VM.Config.Memory', vmid !== undefined ? `/vms/${vmid}` : '/') ||
+    can('VM.Config.Options', vmid !== undefined ? `/vms/${vmid}` : '/') ||
+    canPower
   const denyPower = t('access.denied')
 
   const diskKeys = Object.keys(configQuery.data ?? {}).filter((k) =>
@@ -143,7 +147,13 @@ export function GuestDrawer(): React.JSX.Element {
   const cfg = configQuery.data ?? {}
   const digest = typeof cfg['digest'] === 'string' ? cfg['digest'] : undefined
 
-  const drawerWidth = typeof window !== 'undefined' ? Math.min(Math.round(window.innerWidth * 0.92), 1280) : 1100
+  const drawerWidth =
+    typeof window !== 'undefined' ? Math.min(Math.round(window.innerWidth * 0.92), 1280) : 1100
+
+  const coresInit = Number(cfg['cores'] ?? 1) || 1
+  const socketsInit = Number(cfg['sockets'] ?? 1) || 1
+  const memoryInit = Number(cfg['memory'] ?? 512) || 512
+  const swapInit = cfg['swap'] !== undefined ? Number(cfg['swap']) : undefined
 
   return (
     <Drawer
@@ -154,7 +164,7 @@ export function GuestDrawer(): React.JSX.Element {
             <Typography.Text strong style={{ color: '#fff' }}>
               {type === 'qemu' ? 'VM' : 'CT'} {vmid} — {guest.name}
             </Typography.Text>
-            <Tag className={running ? 'tech-tag-running' : undefined}>{status}</Tag>
+            <Tag className={running ? 'tech-tag-running' : undefined}>{String(status ?? '—')}</Tag>
             {isTemplate ? <Tag color="gold">{t('guest.templateBadge')}</Tag> : null}
           </Space>
         ) : (
@@ -176,7 +186,7 @@ export function GuestDrawer(): React.JSX.Element {
         },
       }}
     >
-      {guest && activeId && basePath && type && node && vmid !== undefined && (
+      {guest && activeId && basePath && type && node && vmid !== undefined ? (
         <Tabs
           key={tabsKey}
           activeKey={tab}
@@ -187,19 +197,20 @@ export function GuestDrawer(): React.JSX.Element {
               label: t('guest.tabOverview'),
               children: (
                 <Flex gap={16} align="start" wrap>
-                  <Flex vertical gap={16} style={{ flex: 1, minWidth: 320 }}>
+                  <Flex vertical gap={16} style={{ flex: 1, minWidth: 280 }}>
                     <Card className="tech-glass-card" size="small">
                       <Flex justify="space-between" align="center" wrap gap={8}>
-                        <Space>
+                        <Space wrap>
                           <LedDot kind={running ? 'running' : 'stopped'} />
                           <Typography.Text>
-                            {t('common.status')}: {status ? t(`status.${status}` as 'status.running') : '—'}
+                            {t('common.status')}:{' '}
+                            {status ? t(`status.${status}` as 'status.running') : '—'}
                           </Typography.Text>
-                          {statusQuery.data?.uptime !== undefined && statusQuery.data.uptime > 0 && (
+                          {statusQuery.data?.uptime !== undefined && statusQuery.data.uptime > 0 ? (
                             <Typography.Text type="secondary" className="tech-mono" style={{ fontSize: 12 }}>
                               {t('guest.uptime')}: {formatUptime(statusQuery.data.uptime)}
                             </Typography.Text>
-                          )}
+                          ) : null}
                           <Typography.Text type="secondary">· {node}</Typography.Text>
                         </Space>
                         <Space wrap>
@@ -277,20 +288,62 @@ export function GuestDrawer(): React.JSX.Element {
                     </Card>
 
                     {rrdQuery.isLoading ? (
-                      <Skeleton active paragraph={{ rows: 6 }} />
+                      <Skeleton active paragraph={{ rows: 4 }} />
                     ) : (
                       <Flex gap={12} wrap>
-                        <MiniChart title={t('guest.cpu')} points={rrdPoints} seriesKey="cpu" color={PVE_COLORS.success} format={formatPercent} />
-                        <MiniChart title={t('guest.memory')} points={rrdPoints} seriesKey="mem" color={PVE_COLORS.info} format={formatBytes} />
-                        <MiniChart title="Network" points={rrdPoints} seriesKey="netin" color={PVE_COLORS.primary} format={formatBytes} secondKey="netout" />
-                        <MiniChart title="Disk I/O" points={rrdPoints} seriesKey="diskread" color="#a78bfa" format={formatBytes} secondKey="diskwrite" />
+                        <MiniChart
+                          title={t('guest.cpu')}
+                          points={rrdPoints}
+                          seriesKey="cpu"
+                          color={PVE_COLORS.success}
+                          format={formatPercent}
+                        />
+                        <MiniChart
+                          title={t('guest.memory')}
+                          points={rrdPoints}
+                          seriesKey="mem"
+                          color={PVE_COLORS.info}
+                          format={formatBytes}
+                        />
+                        <MiniChart
+                          title="Network"
+                          points={rrdPoints}
+                          seriesKey="netin"
+                          color={PVE_COLORS.primary}
+                          format={formatBytes}
+                          secondKey="netout"
+                        />
+                        <MiniChart
+                          title="Disk I/O"
+                          points={rrdPoints}
+                          seriesKey="diskread"
+                          color="#a78bfa"
+                          format={formatBytes}
+                          secondKey="diskwrite"
+                        />
                       </Flex>
                     )}
 
                     <Card className="tech-glass-card" size="small" title={t('guest.tabConsole')}>
-                      <div style={{ minHeight: 280, border: `1px solid ${PVE_COLORS.cyanBorder}`, borderRadius: 8, overflow: 'hidden' }}>
-                        <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />
-                      </div>
+                      <Flex
+                        vertical
+                        align="center"
+                        justify="center"
+                        gap={12}
+                        style={{
+                          minHeight: 160,
+                          border: `1px solid ${PVE_COLORS.cyanBorder}`,
+                          borderRadius: 8,
+                          background: 'rgba(11, 15, 25, 0.65)',
+                        }}
+                      >
+                        <Typography.Text type="secondary">
+                          {running ? 'Console ready' : t('status.stopped')}
+                        </Typography.Text>
+                        <Button type="primary" icon={<CodeOutlined />} onClick={() => setTab('console')}>
+                          {t('guest.tabConsole')}
+                        </Button>
+                      </Flex>
                     </Card>
 
                     <GuestOps
@@ -323,18 +376,18 @@ export function GuestDrawer(): React.JSX.Element {
                     className="tech-glass-card"
                     size="small"
                     title={`${t('guest.tabHardware')} · quick`}
-                    style={{ width: 300, flexShrink: 0, position: 'sticky', top: 0 }}
+                    style={{ width: 300, flexShrink: 0 }}
                   >
-                    {configQuery.isLoading ? (
+                    {configQuery.isLoading || !configQuery.data ? (
                       <Skeleton active />
                     ) : (
                       <CpuMemoryForm
                         guestType={type}
                         initialValues={{
-                          cores: Number(cfg['cores'] ?? 1),
-                          sockets: Number(cfg['sockets'] ?? 1),
-                          memory: Number(cfg['memory'] ?? 512),
-                          swap: cfg['swap'] !== undefined ? Number(cfg['swap']) : undefined,
+                          cores: coresInit,
+                          sockets: socketsInit,
+                          memory: memoryInit,
+                          swap: swapInit,
                         }}
                         submitText={t('common.save')}
                         onFinish={async (values: CpuMemoryValues) => {
@@ -419,7 +472,7 @@ export function GuestDrawer(): React.JSX.Element {
             },
           ]}
         />
-      )}
+      ) : null}
     </Drawer>
   )
 }
@@ -440,9 +493,11 @@ function MiniChart({
   secondKey?: string
 }): React.JSX.Element {
   const series = [{ key: seriesKey, label: title, color, format }]
-  if (secondKey) series.push({ key: secondKey, label: secondKey, color: PVE_COLORS.warning, format })
+  if (secondKey) {
+    series.push({ key: secondKey, label: secondKey, color: PVE_COLORS.warning, format })
+  }
   return (
-    <Card className="tech-glass-card" size="small" style={{ flex: 1, minWidth: 200 }}>
+    <Card className="tech-glass-card" size="small" style={{ flex: 1, minWidth: 180 }}>
       <Typography.Text type="secondary" style={{ fontSize: 11 }}>
         {title}
       </Typography.Text>

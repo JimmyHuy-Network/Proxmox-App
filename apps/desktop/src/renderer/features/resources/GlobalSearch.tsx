@@ -129,14 +129,15 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
         className="neon-border-active"
         styles={{
           body: {
-            background: 'transparent',
-          },
-          container: {
             background: 'rgba(18, 24, 38, 0.92)',
-            backdropFilter: 'blur(14px)',
-            border: `1px solid ${PVE_COLORS.cyanBorder}`,
-            boxShadow: `0 0 24px ${PVE_COLORS.cyanGlow}`,
           },
+          mask: {
+            backdropFilter: 'blur(6px)',
+          },
+        }}
+        style={{
+          border: `1px solid ${PVE_COLORS.cyanBorder}`,
+          boxShadow: `0 0 24px ${PVE_COLORS.cyanGlow}`,
         }}
       >
         <Input
@@ -149,6 +150,9 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
           onChange={(e) => setValue(e.target.value)}
           className="neon-border"
           style={{ marginBottom: 16 }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') close()
+          }}
         />
 
         {total === 0 ? (
