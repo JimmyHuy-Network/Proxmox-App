@@ -4,38 +4,41 @@ overview: 'Sửa các lỗi tìm thấy khi audit sau merge Modern Hi-Tech UI: r
 todos:
   - id: stability-devshm
     content: 'Linux container: tự thêm switch disable-dev-shm-usage khi /dev/shm nhỏ; thêm arg vào electron-e2e launch; cập nhật AGENTS.md'
-    status: pending
+    status: completed
   - id: renderer-crash-recovery
     content: 'render-process-gone: tự reload renderer (giới hạn retry) thay vì để cửa sổ đen; guard pushEvent khỏi webContents đã destroy; bật crashReporter local minidump'
-    status: pending
+    status: completed
   - id: fix-react-key-wizards
     content: 'AppLayout: prefix key hai wizard (vm-/ct-) — hết warning "two children with the same key `0`" mỗi nhịp poll 3s'
-    status: pending
+    status: completed
   - id: health-chips-live
     content: 'ClusterHealthChips: refetchInterval cho Ceph/cluster query (hiện fetch 1 lần rồi đứng im); Quorum đọc quorate từ /cluster/status thay heuristic online>0; hiện username cạnh connection switcher'
-    status: pending
+    status: completed
   - id: fix-e2e-snapshot
     content: 'electron-e2e guest-lifecycle: selector .ant-card input khớp nhầm input ẩn của tab Overview → scope vào tabpane Snapshot đang active; chạy lại đủ 9/9'
-    status: pending
+    status: completed
   - id: guest-console-single-session
     content: 'GuestDrawer: tab Overview nhúng GuestConsoleTab + tab Console tạo phiên VNC thứ hai song song — chỉ mount console pane của tab đang active'
-    status: pending
+    status: completed
   - id: i18n-dashboard-hardcode
     content: 'Dịch nốt key EN trong vi.ts (dashboard/search); bỏ hardcode "pve-cluster" — lấy tên cluster thật + số node từ /cluster/status; dịch hint "Online/Running/Active/Cluster uptime", nhãn MiniChart Network/Disk I/O'
-    status: pending
+    status: completed
   - id: antd-deprecations
     content: 'Dọn deprecation antd v6: Drawer `width` → API mới, Alert `message` → `title` (≈15 file dùng chung pattern)'
-    status: pending
+    status: completed
   - id: search-console-polish
     content: 'GlobalSearch: nút Console mở đúng tab console (thêm targetTab vào selection store); đếm "N results" theo nhóm (§5.4.2)'
-    status: pending
+    status: completed
   - id: ui-polish-leftover
     content: 'Polish §5.4 còn lại (tuỳ chọn, làm sau): guest Network firewall toggle panel phải; Access scope pills; Dashboard series Disk + nổi Running x/y; SDN subnets; wire icon .ico'
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Kế hoạch ổn định hoá & polish sau audit (08/2026)
+
+> **Trạng thái:** các mục A/B/C đã triển khai trên nhánh `cursor/stability-polish-98ec`.
+> Xác nhận bằng `npm test && npm run typecheck && npm run lint` + electron-e2e 9/9.
 
 Kết quả audit toàn diện trên `main` (`29dfaaf`) — test tự động + test GUI thủ công trên mock
 (`cluster-3node`, `broken-cluster`, `huge`) đối chiếu [docs/ui-mockups/](../../docs/ui-mockups/),

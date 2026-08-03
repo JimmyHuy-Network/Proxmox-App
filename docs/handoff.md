@@ -43,10 +43,9 @@ DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run -w @pve/desktop dev
 **Caveat cloud VM:** Electron `safeStorage` không có → form “Thêm kết nối” không mã hoá được credential.
 Dùng `PVE_E2E_MOCK_URL` (hook E2E) để seed vault plain-text + auto-connect. Chi tiết [AGENTS.md](../AGENTS.md).
 
-**Caveat cloud VM (mới, 08/2026):** `/dev/shm` chỉ 64 MB → renderer **crash chắc chắn**
-(đen màn hình, `exitCode: 5`) khi mở GuestDrawer (nhiều canvas). Chạy dev với
-`npx electron-vite dev -- --disable-dev-shm-usage` cho tới khi làm todo `stability-devshm`
-trong [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md). Chi tiết §7.1.
+**Caveat cloud VM (mới, 08/2026):** `/dev/shm` chỉ 64 MB → renderer crash khi mở GuestDrawer
+nếu không có `--disable-dev-shm-usage`. App **tự thêm** switch khi `/dev/shm` < 256 MB
+(xem `stability-devshm`). Chi tiết §7.1 / AGENTS.md.
 
 ---
 
@@ -71,15 +70,15 @@ token; tuỳ chọn test feed generic bằng `PVE_UPDATE_URL`.
 
 ## 3. Việc tiếp theo (sau GĐ 9 / ngoài UI)
 
-0. **Trước hết:** làm [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md)
-   (bug từ audit §7 — crash /dev/shm, hồi phục renderer, health chips đứng im, E2E 8/9…).
+0. ~~**Trước hết:** làm [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md)~~
+   — **đã làm** (nhóm A/B/C trên nhánh stability-polish).
 1. Mua EV/OV; gán `CSC_*` vào secrets CI (publish GitHub + workflow Release đã có;
-   repo đã public). (`icon.png` đã = mockup; tuỳ chọn `.ico`)
+   repo đã public). (`icon.png` đã = mockup + wire trong electron-builder; tuỳ chọn `.ico`)
 2. Virtualize Tree/table khi `huge` (400 guest) nếu profiler còn nóng — audit 08/2026 đo
    GUI thực tế với 400 guest vẫn mượt (tree/search/drawer), chưa cần ưu tiên.
 3. Đối chiếu định kỳ với PVE thật — [nested-pve-hyperv.md](nested-pve-hyperv.md).
 4. Deep-link hash `?tab=` cho Access/Firewall nếu cần chia sẻ URL nội bộ.
-5. Làm các mục polish UI còn lại ở §5.4 (đã gom vào plan mới, nhóm C).
+5. ~~Làm các mục polish UI còn lại ở §5.4~~ — đã gom vào stability plan nhóm C và xử lý.
 
 ### Điểm nối còn hiệu lực
 
@@ -290,9 +289,8 @@ Mục tiêu plan: **giống ảnh nhất có thể** trên API PVE thật; khôn
 
 ## 6. Gợi ý phiên tiếp theo
 
-1. Làm [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md) theo thứ tự
-   nhóm A (ổn định) → B (bug) → C (polish). Mỗi mục đã ghi rõ file + root cause ở §7.
-2. Tiếp các mục §3 (ký số / publish).
+1. ~~Làm [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md)~~ — xong.
+2. Tiếp các mục §3 (ký số / publish) và đối chiếu PVE thật.
 
 ---
 
