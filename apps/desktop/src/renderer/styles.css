@@ -1,3 +1,20 @@
+:root {
+  --pve-bg-base: #0b0f19;
+  --pve-bg-container: #121826;
+  --pve-bg-elevated: #182032;
+  --pve-primary: #ff6b00;
+  --pve-cyan: #00f2fe;
+  --pve-success: #00f5a0;
+  --pve-error: #ff4d6d;
+  --pve-warning: #ffb020;
+  --pve-border: #232f48;
+  --pve-border-secondary: #1b253b;
+  --pve-cyan-border: rgba(0, 242, 254, 0.35);
+  --pve-cyan-glow: rgba(0, 242, 254, 0.45);
+  --pve-orange-glow: rgba(255, 107, 0, 0.35);
+  --pve-font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'SF Mono', monospace;
+}
+
 html,
 body,
 #root {
@@ -9,7 +26,20 @@ body,
 body {
   overflow: hidden;
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  background-color: var(--pve-bg-base);
+  background-image:
+    linear-gradient(rgba(0, 242, 254, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 242, 254, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  color: rgba(255, 255, 255, 0.88);
   /* Giao diện quản trị dày đặc dữ liệu: bỏ chọn văn bản mặc định để kéo thả
      trong bảng và cây tài nguyên không bôi đen lung tung. Chỗ nào cần chọn
      (log, console) sẽ bật lại riêng. */
@@ -19,6 +49,317 @@ body {
 .xterm,
 .xterm *,
 pre,
-code {
+code,
+.tech-mono {
   user-select: text;
+  font-family: var(--pve-font-mono);
+}
+
+/* —— Glass / neon utilities —— */
+.tech-glass-card {
+  background: linear-gradient(160deg, rgba(24, 34, 54, 0.92), rgba(14, 20, 34, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--pve-cyan-border);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(0, 242, 254, 0.06) inset,
+    0 0 18px rgba(0, 242, 254, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.neon-border {
+  border: 1px solid var(--pve-cyan-border);
+  box-shadow: 0 0 14px rgba(0, 242, 254, 0.16);
+}
+
+.neon-border-active {
+  border: 1px solid rgba(0, 242, 254, 0.65);
+  box-shadow: 0 0 22px var(--pve-cyan-glow), 0 0 2px #fff inset;
+}
+
+.tech-search-modal .ant-modal-content {
+  background: rgba(12, 18, 32, 0.94) !important;
+  border: 1px solid rgba(0, 242, 254, 0.55) !important;
+  box-shadow: 0 0 40px rgba(0, 242, 254, 0.28), 0 0 80px rgba(0, 242, 254, 0.12) !important;
+  border-radius: 14px !important;
+}
+
+.tech-search-modal .ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(0, 242, 254, 0.18) !important;
+}
+
+.guest-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr) minmax(260px, 0.9fr);
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .guest-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.guest-console-chrome {
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.15);
+  overflow: hidden;
+  background: rgba(5, 10, 18, 0.9);
+}
+
+.vault-matrix td,
+.vault-matrix th {
+  text-align: center !important;
+}
+
+.vault-matrix .matrix-cell-full {
+  color: var(--pve-success);
+  text-shadow: 0 0 8px rgba(0, 245, 160, 0.5);
+}
+
+.vault-matrix .matrix-cell-limited {
+  color: var(--pve-cyan);
+}
+
+.vault-matrix .matrix-cell-none {
+  color: #4b5563;
+}
+
+.fw-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.fw-summary-chip {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--pve-cyan-border);
+  background: rgba(11, 15, 25, 0.7);
+  min-width: 110px;
+}
+
+.sdn-topo-wrap {
+  border: 1px solid rgba(0, 242, 254, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(0, 242, 254, 0.08), transparent 55%),
+    radial-gradient(ellipse at 70% 60%, rgba(255, 107, 0, 0.06), transparent 50%),
+    rgba(11, 15, 25, 0.75);
+  box-shadow: 0 0 24px rgba(0, 242, 254, 0.1);
+}
+
+/* LED status dots */
+.led-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.led-online,
+.led-running {
+  background: var(--pve-success);
+  box-shadow: 0 0 8px rgba(0, 245, 160, 0.75);
+}
+
+.led-stopped {
+  background: #6b7280;
+  box-shadow: 0 0 4px rgba(107, 114, 128, 0.4);
+}
+
+.led-error {
+  background: var(--pve-error);
+  box-shadow: 0 0 8px rgba(255, 77, 109, 0.7);
+}
+
+.led-warn {
+  background: var(--pve-warning);
+  box-shadow: 0 0 8px rgba(255, 176, 32, 0.7);
+}
+
+.led-info {
+  background: var(--pve-cyan);
+  box-shadow: 0 0 8px var(--pve-cyan-glow);
+}
+
+.tech-tag-ok {
+  color: var(--pve-success) !important;
+  border-color: rgba(0, 245, 160, 0.45) !important;
+  background: rgba(0, 245, 160, 0.08) !important;
+  font-family: var(--pve-font-mono);
+}
+
+.tech-tag-running {
+  color: var(--pve-cyan) !important;
+  border-color: rgba(0, 242, 254, 0.45) !important;
+  background: rgba(0, 242, 254, 0.08) !important;
+  font-family: var(--pve-font-mono);
+}
+
+.tech-tag-fail {
+  color: var(--pve-error) !important;
+  border-color: rgba(255, 77, 109, 0.45) !important;
+  background: rgba(255, 77, 109, 0.08) !important;
+  font-family: var(--pve-font-mono);
+}
+
+.tech-tag-accept {
+  color: var(--pve-success) !important;
+  border-color: rgba(0, 245, 160, 0.45) !important;
+  background: rgba(0, 245, 160, 0.1) !important;
+}
+
+.tech-tag-drop {
+  color: var(--pve-error) !important;
+  border-color: rgba(255, 77, 109, 0.45) !important;
+  background: rgba(255, 77, 109, 0.1) !important;
+}
+
+.health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--pve-cyan-border);
+  background: rgba(18, 24, 38, 0.85);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.health-chip strong {
+  color: var(--pve-success);
+  font-weight: 600;
+}
+
+.app-brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+  box-shadow: 0 0 10px rgba(255, 107, 0, 0.35);
+}
+
+.resource-tree-row:hover {
+  background: rgba(0, 242, 254, 0.06);
+}
+
+.ant-tree .ant-tree-node-selected .resource-tree-row,
+.ant-tree-node-content-wrapper.ant-tree-node-selected {
+  background: rgba(0, 242, 254, 0.12) !important;
+  border-radius: 6px;
+}
+
+.ant-layout-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ant-layout-sider .resource-tree-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ant-layout-header.tech-header {
+  backdrop-filter: blur(10px);
+  background: rgba(18, 24, 38, 0.92) !important;
+  border-bottom: 1px solid var(--pve-cyan-border) !important;
+  box-shadow: 0 1px 0 rgba(255, 107, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  max-width: 420px;
+  width: 36vw;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--pve-cyan-border);
+  background: rgba(11, 15, 25, 0.75);
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.search-trigger:hover {
+  border-color: rgba(0, 242, 254, 0.45);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.search-trigger kbd {
+  margin-inline-start: auto;
+  font-family: var(--pve-font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--pve-border);
+  background: rgba(24, 32, 50, 0.9);
+}
+
+.tech-donut {
+  display: block;
+}
+
+.tech-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cyber scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 242, 254, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 254, 0.3);
+  border-radius: 6px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 242, 254, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led-online,
+  .led-running,
+  .led-warn,
+  .led-error,
+  .led-info {
+    box-shadow: none;
+  }
+
+  .tech-glass-card,
+  .neon-border,
+  .neon-border-active,
+  .ant-layout-header.tech-header {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }

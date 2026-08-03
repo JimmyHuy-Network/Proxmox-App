@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { App, Button, Form, Input, Modal, Space, Tabs, Typography } from 'antd'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PveGrid } from '../../components/PveGrid'
 import { PveForm } from '../../components/PveForm'
@@ -26,9 +26,12 @@ export function DatacenterExtrasPage(): React.JSX.Element {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Typography.Title level={4} style={{ margin: 0 }}>
-        {t('nav.datacenter')}
-      </Typography.Title>
+      <div className="tech-glass-card" style={{ padding: 16 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          {t('nav.datacenter')}
+        </Typography.Title>
+      </div>
+      <div className="tech-glass-card" style={{ padding: 12 }}>
       <Tabs
         items={[
           {
@@ -67,6 +70,7 @@ export function DatacenterExtrasPage(): React.JSX.Element {
           },
         ]}
       />
+      </div>
     </Space>
   )
 }
@@ -85,8 +89,104 @@ function SdnTab({
   const zonesKey = pveQueryKey(connectionId, 'GET', '/cluster/sdn/zones', {})
   const node = 'pve1'
 
+  const zonesQ = useQuery({
+    queryKey: zonesKey,
+    queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/cluster/sdn/zones', {}),
+  })
+  const vnetsQ = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/cluster/sdn/vnets', {}),
+    queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/cluster/sdn/vnets', {}),
+  })
+
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Space wrap>
+        <div className="neon-border" style={{ padding: '8px 14px', borderRadius: 8, minWidth: 120 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            {t('sdn.zones')}
+          </Typography.Text>
+          <div className="tech-mono" style={{ fontSize: 20 }}>
+            {zonesQ.data?.length ?? '—'}
+          </div>
+        </div>
+        <div className="neon-border" style={{ padding: '8px 14px', borderRadius: 8, minWidth: 120 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            {t('sdn.vnets')}
+          </Typography.Text>
+          <div className="tech-mono" style={{ fontSize: 20 }}>
+            {vnetsQ.data?.length ?? '—'}
+          </div>
+        </div>
+      </Space>
+      {(vnetsQ.data?.length ?? 0) > 0 ? (
+        <div className="sdn-topo-wrap">
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            Network Topology (zones → vnets)
+          </Typography.Text>
+          <svg
+            width="100%"
+            height={Math.max(160, (zonesQ.data?.length ?? 1) * 72 + 40)}
+            style={{ marginTop: 10 }}
+          >
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <circle cx="48" cy="28" r="10" fill="rgba(0,242,254,0.25)" stroke="#00f2fe" filter="url(#glow)" />
+            <text x="68" y="32" fill="#00f2fe" fontSize={11}>
+              Edge
+            </text>
+            {(zonesQ.data ?? []).map((z, i) => {
+              const zone = String(z.zone ?? '')
+              const children = (vnetsQ.data ?? []).filter((v) => String(v.zone) === zone)
+              const y = 64 + i * 72
+              return (
+                <g key={zone || i}>
+                  <line x1="48" y1="38" x2="48" y2={y} stroke="rgba(0,242,254,0.25)" strokeDasharray="4 3" />
+                  <rect
+                    x={16}
+                    y={y - 18}
+                    width={140}
+                    height={36}
+                    rx={8}
+                    fill="rgba(0,242,254,0.12)"
+                    stroke="rgba(0,242,254,0.55)"
+                    filter="url(#glow)"
+                  />
+                  <text x={86} y={y + 4} textAnchor="middle" fill="#00f2fe" fontSize={12} fontWeight={600}>
+                    {zone}
+                  </text>
+                  {children.map((v, j) => {
+                    const vx = 220 + j * 130
+                    return (
+                      <g key={String(v.vnet)}>
+                        <line x1={156} y1={y} x2={vx} y2={y} stroke="rgba(255,107,0,0.55)" strokeWidth={1.5} />
+                        <rect
+                          x={vx}
+                          y={y - 16}
+                          width={110}
+                          height={32}
+                          rx={8}
+                          fill="rgba(255,107,0,0.12)"
+                          stroke="rgba(255,107,0,0.5)"
+                        />
+                        <text x={vx + 55} y={y + 4} textAnchor="middle" fill="#ffb020" fontSize={11}>
+                          {String(v.vnet)}
+                        </text>
+                      </g>
+                    )
+                  })}
+                </g>
+              )
+            })}
+          </svg>
+        </div>
+      ) : null}
       <Space>
         <TaskButton
           connectionId={connectionId}
