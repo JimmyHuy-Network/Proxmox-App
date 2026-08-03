@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { IpcChannel, type AuthEvent, type PveEvent } from '@pve/ipc'
 import { installCsp } from './security/csp'
@@ -15,6 +15,9 @@ import { ConnectionPool } from './pve/connection-pool'
 import { ResourcePoller } from './pve/resource-poller'
 import { TaskTracker } from './pve/task-tracker'
 import { createMainWindow, installNavigationGuards, openExternalLink } from './window'
+import { getLogDirectory, installLogging, log } from './logging'
+import { checkForUpdatesNow, getUpdateStatus, installUpdater, quitAndInstall } from './updater'
+import { installAppMenu } from './menu'
 
 const isDev = !app.isPackaged
 const relay = new ConsoleRelayServer()
@@ -45,9 +48,12 @@ if (!app.requestSingleInstanceLock()) {
 async function bootstrap(): Promise<void> {
   await app.whenReady()
 
+  installLogging()
   electronApp.setAppUserModelId('com.proxmoxapp.desktop')
   installNavigationGuards()
   installCsp(process.env['ELECTRON_RENDERER_URL'])
+  installAppMenu()
+  installUpdater(app.isPackaged)
 
   // Kho kết nối + connection pool. Vault nằm trong userData; secret mã hóa bằng
   // DPAPI (safeStorage), ticket/CSRF chỉ giữ trong bộ nhớ pool.
@@ -182,7 +188,17 @@ function registerAppHandlers(): void {
 
     switch (cmd['action']) {
       case 'getVersion':
-        return { ok: true, data: { app: app.getVersion(), electron: process.versions.electron } }
+        return {
+          ok: true,
+          data: {
+            app: app.getVersion(),
+            electron: process.versions.electron,
+            chrome: process.versions.chrome,
+            node: process.versions.node,
+            platform: process.platform,
+            packaged: app.isPackaged,
+          },
+        }
 
       case 'openExternal': {
         const url = cmd['url']
@@ -194,11 +210,35 @@ function registerAppHandlers(): void {
       case 'isDev':
         return { ok: true, data: isDev }
 
+      case 'getUpdateStatus':
+        return { ok: true, data: getUpdateStatus() }
+
+      case 'checkForUpdates':
+        return { ok: true, data: await checkForUpdatesNow() }
+
+      case 'quitAndInstall':
+        quitAndInstall()
+        return { ok: true, data: null }
+
+      case 'getLogPath':
+        return { ok: true, data: getLogDirectory() }
+
+      case 'openLogs': {
+        const dir = getLogDirectory()
+        const err = await shell.openPath(dir)
+        return err ? { ok: false, message: err } : { ok: true, data: null }
+      }
+
       default:
         return { ok: false, message: 'Hành động không hỗ trợ' }
     }
   })
 }
+
+// Log sẽ-quit để dễ đối chiếu crash log.
+app.on('before-quit', () => {
+  log.info('app before-quit')
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

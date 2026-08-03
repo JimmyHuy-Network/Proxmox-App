@@ -124,7 +124,7 @@ export function Dashboard(): React.JSX.Element {
       </Flex>
 
       <Card
-        title="Máy ảo và container"
+        title={t('dashboard.guestsTitle')}
         size="small"
         extra={
           <Space>
@@ -176,9 +176,9 @@ export function Dashboard(): React.JSX.Element {
           onRow={(r) => ({ onClick: () => select(r), style: { cursor: 'pointer' } })}
           columns={[
             { title: 'VMID', dataIndex: 'vmid', width: 80, sorter: (a, b) => (a.vmid ?? 0) - (b.vmid ?? 0) },
-            { title: 'Tên', dataIndex: 'name', sorter: (a, b) => (a.name ?? '').localeCompare(b.name ?? '') },
+            { title: t('dashboard.colName'), dataIndex: 'name', sorter: (a, b) => (a.name ?? '').localeCompare(b.name ?? '') },
             {
-              title: 'Loại',
+              title: t('dashboard.colType'),
               dataIndex: 'type',
               width: 90,
               filters: [
@@ -189,13 +189,13 @@ export function Dashboard(): React.JSX.Element {
               render: (v: string) => <Tag>{v === 'qemu' ? 'VM' : 'CT'}</Tag>,
             },
             {
-              title: 'Node',
+              title: t('dashboard.colNode'),
               dataIndex: 'node',
               width: 100,
               sorter: (a, b) => (a.node ?? '').localeCompare(b.node ?? ''),
             },
             {
-              title: 'Trạng thái',
+              title: t('dashboard.colStatus'),
               dataIndex: 'status',
               width: 110,
               filters: [

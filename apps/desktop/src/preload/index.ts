@@ -11,6 +11,7 @@ import type {
   TestConnectionResult,
   TransferDownloadRequest,
   TransferUploadRequest,
+  UpdateStatus,
 } from '@pve/ipc'
 
 type VaultReply<T> = { ok: true; data: T } | { ok: false; message: string }
@@ -148,7 +149,17 @@ const api = {
   },
 
   app: {
-    getVersion(): Promise<{ ok: boolean; data?: { app: string; electron: string } }> {
+    getVersion(): Promise<{
+      ok: boolean
+      data?: {
+        app: string
+        electron: string
+        chrome?: string
+        node?: string
+        platform?: string
+        packaged?: boolean
+      }
+    }> {
       return ipcRenderer.invoke(IpcChannel.App, { action: 'getVersion' })
     },
     isDev(): Promise<{ ok: boolean; data?: boolean }> {
@@ -157,6 +168,31 @@ const api = {
     /** Main kiểm tra theo danh sách trắng; renderer không mở được URL tuỳ ý. */
     openExternal(url: string): Promise<{ ok: boolean; message?: string }> {
       return ipcRenderer.invoke(IpcChannel.App, { action: 'openExternal', url })
+    },
+    getUpdateStatus(): Promise<{ ok: boolean; data?: UpdateStatus }> {
+      return ipcRenderer.invoke(IpcChannel.App, { action: 'getUpdateStatus' })
+    },
+    checkForUpdates(): Promise<{ ok: boolean; data?: UpdateStatus }> {
+      return ipcRenderer.invoke(IpcChannel.App, { action: 'checkForUpdates' })
+    },
+    quitAndInstall(): Promise<{ ok: boolean; message?: string }> {
+      return ipcRenderer.invoke(IpcChannel.App, { action: 'quitAndInstall' })
+    },
+    getLogPath(): Promise<{ ok: boolean; data?: string }> {
+      return ipcRenderer.invoke(IpcChannel.App, { action: 'getLogPath' })
+    },
+    openLogs(): Promise<{ ok: boolean; message?: string }> {
+      return ipcRenderer.invoke(IpcChannel.App, { action: 'openLogs' })
+    },
+    /** Phím tắt từ application menu (main → renderer). */
+    onShortcut(callback: (action: string) => void): () => void {
+      const handler = (_event: unknown, payload: { action?: string }): void => {
+        if (typeof payload?.action === 'string') callback(payload.action)
+      }
+      ipcRenderer.on('app:shortcut', handler)
+      return () => {
+        ipcRenderer.off('app:shortcut', handler)
+      }
     },
   },
 }

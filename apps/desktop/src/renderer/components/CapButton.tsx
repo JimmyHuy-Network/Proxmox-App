@@ -9,6 +9,7 @@ export function CapButton({
   disabled,
   title,
   children,
+  'aria-label': ariaLabel,
   ...rest
 }: ButtonProps & {
   allowed: boolean
@@ -17,7 +18,13 @@ export function CapButton({
 }): React.JSX.Element {
   const blocked = !allowed
   const btn = (
-    <Button {...rest} disabled={disabled || blocked} title={blocked ? undefined : title}>
+    <Button
+      {...rest}
+      disabled={disabled || blocked}
+      title={blocked ? undefined : title}
+      aria-disabled={disabled || blocked}
+      aria-label={typeof children === 'string' ? children : ariaLabel}
+    >
       {children}
     </Button>
   )

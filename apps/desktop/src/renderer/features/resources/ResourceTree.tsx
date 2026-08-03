@@ -157,7 +157,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
       {treeData.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={query ? 'Không tìm thấy' : 'Chưa có tài nguyên'}
+          description={query ? t('tree.noMatch') : t('tree.empty')}
           style={{ marginTop: 24 }}
         />
       ) : (
