@@ -12,16 +12,16 @@ Kế hoạch: [plan.md](plan.md) · UI mockup plan: [../.cursor/plans/modern_tec
 
 **Giai đoạn 0–9 hoàn tất** trên `main` (GĐ 9 = hardening & phát hành MVP).
 
-**Modern Hi-Tech UI** trên nhánh `cursor/modern-hi-tech-ui-24d9` / PR #12 — visual refresh
+**Modern Hi-Tech UI** đã merge `main` qua PR #12 (`1f487fa`) — visual refresh
 bám [ui-mockups/](ui-mockups/) theo [modern_tech_ui_plan.md](../.cursor/plans/modern_tech_ui_plan.md).
-**Chưa merge `main`.** Audit source↔plan↔mockup cập nhật trong §5 (2026-08-03).
+Audit source↔plan↔mockup trong §5; phần polish còn lại ở §5.4.
 
 | Hạng mục | Trạng thái |
 |---|---|
 | GĐ 0–8 | Xong (`main`) |
 | GĐ 9 (update / crash log / shortcuts / i18n / a11y tối thiểu / perf signature) | Xong (`main`) |
 | **Ký số Windows** | Chưa mua cert — [decision-windows-signing.md](decision-windows-signing.md) |
-| **Modern Hi-Tech UI** | Theme+search+dashboard **DONE**; shell/guest/firewall-access **PARTIAL** — chi tiết §5 |
+| **Modern Hi-Tech UI** | Đã merge (`main`); theme+search+dashboard **DONE**; shell/guest/firewall-access **PARTIAL** — §5 |
 
 ### Kiểm chứng
 
@@ -63,7 +63,7 @@ Dùng `PVE_E2E_MOCK_URL` (hook E2E) để seed vault plain-text + auto-connect. 
 2. Virtualize Tree/table khi `huge` (400 guest) nếu profiler còn nóng.
 3. Đối chiếu định kỳ với PVE thật — [nested-pve-hyperv.md](nested-pve-hyperv.md).
 4. Deep-link hash `?tab=` cho Access/Firewall nếu cần chia sẻ URL nội bộ.
-5. **Review + merge PR #12**, rồi làm các mục polish §5.4.
+5. Làm các mục polish UI còn lại ở §5.4.
 
 ### Điểm nối còn hiệu lực
 
@@ -79,7 +79,7 @@ Dùng `PVE_E2E_MOCK_URL` (hook E2E) để seed vault plain-text + auto-connect. 
 1. Chứng chỉ ký số EV vs OV (xem decision doc).
 2. (Tuỳ chọn) `icon.ico` cho NSIS nếu builder không derive đủ từ png.
 3. Kênh update: GitHub Releases hay generic URL nội bộ.
-4. Sau merge PR #12: ưu tiên kéo pixel-mockup (guest embed, search IP, quorum API) hay chuyển sang ký số/publish?
+4. Ưu tiên kéo pixel-mockup (guest embed, search IP, quorum API) ở §5.4, hay chuyển sang ký số/publish?
 
 ---
 
@@ -87,9 +87,9 @@ Dùng `PVE_E2E_MOCK_URL` (hook E2E) để seed vault plain-text + auto-connect. 
 
 **Nguồn plan:** [.cursor/plans/modern_tech_ui_plan.md](../.cursor/plans/modern_tech_ui_plan.md)  
 **Nguồn visual:** [ui-mockups/](ui-mockups/) (`app_icon`, `ui_dashboard_overview`, `ui_resource_tree_search`, `ui_guest_vm_console`, `ui_datacenter_sdn_firewall`, `ui_access_security_vault`)  
-**Nhánh / PR:** `cursor/modern-hi-tech-ui-24d9` · https://github.com/phamhuyti/Proxmox-App/pull/12  
+**Đã merge:** PR #12 → `main` (`1f487fa`). Nhánh làm việc lịch sử: `cursor/modern-hi-tech-ui-24d9`.
 
-**Commits UI:** `415dd32` (shell) → `7b9def9` (sider/search fix) → `cae717e` (gap-fill) → docs.
+**Commits UI (trước squash/merge):** `415dd32` (shell) → `7b9def9` (sider/search fix) → `cae717e` (gap-fill) → docs audit.
 
 **Verdict tổng:** không phase nào NOT DONE hoàn toàn. Theme + Global Search + Dashboard đạt tiêu chí plan “phải đạt”; Shell / Guest / Firewall–Access–SDN là **skin + layout gần mẫu**, còn lệch IA/pixel so với ảnh.
 
@@ -239,7 +239,6 @@ Mục tiêu plan: **giống ảnh nhất có thể** trên API PVE thật; khôn
 6. **SDN (tuỳ chọn E2):** Subnets count; layout force-directed nhẹ nếu data đủ.
 7. **Build:** wire icon `.ico`/png rõ trong electron-builder.
 8. **i18n:** vài nhãn dashboard/search vẫn EN trong `vi.ts` (Cluster Overview, Recent Alerts, timeframe…).
-9. **PR #12 chưa merge** `main`.
 
 ### 5.5 Index file UI
 
@@ -275,7 +274,6 @@ Mục tiêu plan: **giống ảnh nhất có thể** trên API PVE thật; khôn
 
 ## 6. Gợi ý phiên tiếp theo
 
-1. Merge PR #12 sau review visual trên mock (so từng ảnh §5.2).
-2. Retest GuestDrawer + Ctrl+K trên máy GPU ổn định; nếu flaky → E2E click tree → drawer.
-3. Làm tuần tự polish §5.4 (header user/quorum → search IP → guest FW toggle) nếu muốn gần mockup hơn.
-4. Tiếp các mục §3 (ký số / publish / virtualize).
+1. Retest GuestDrawer + Ctrl+K trên máy GPU ổn định; nếu flaky → E2E click tree → drawer.
+2. Làm tuần tự polish §5.4 (header user/quorum → search IP → guest FW toggle) nếu muốn gần mockup hơn.
+3. Tiếp các mục §3 (ký số / publish / virtualize).
