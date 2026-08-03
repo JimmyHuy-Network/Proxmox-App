@@ -1,21 +1,21 @@
 import { useMemo, useState } from 'react'
-import { Badge, Empty, Flex, Input, Spin, Tag, Tree, Typography, theme } from 'antd'
-import { DatabaseOutlined, SearchOutlined } from '@ant-design/icons'
+import { Empty, Flex, Input, Spin, Tag, Tree, Typography, theme } from 'antd'
+import {
+  CloudServerOutlined,
+  ContainerOutlined,
+  DatabaseOutlined,
+  DesktopOutlined,
+  SearchOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import type { DataNode } from 'antd/es/tree'
 import { useTranslation } from 'react-i18next'
 import { useClusterResources } from '../../hooks/useClusterResources'
 import { useSelection } from '../../stores/selection'
 import { NodeShellButton } from '../console/NodeShellButton'
+import { LedDot, ledKindFromResourceStatus } from '../../components/TechUi'
+import { PVE_COLORS } from '../../theme/tokens'
 import { isGuest, type ClusterResource } from './types'
-
-type StatusBadge = 'success' | 'default' | 'error' | 'warning'
-
-function statusOf(r: ClusterResource): StatusBadge {
-  if (r.type === 'node') return r.status === 'online' ? 'success' : 'error'
-  if (isGuest(r)) return r.status === 'running' ? 'success' : 'default'
-  if (r.type === 'storage') return r.status === 'available' ? 'success' : 'warning'
-  return 'default'
-}
 
 function guestLabel(r: ClusterResource): string {
   const kind = r.type === 'qemu' ? 'VM' : 'CT'
@@ -31,11 +31,23 @@ function matches(r: ClusterResource, query: string): boolean {
   )
 }
 
+function GuestIcon({ type }: { type: string }): React.JSX.Element {
+  if (type === 'lxc') return <ContainerOutlined style={{ color: PVE_COLORS.info }} />
+  return <DesktopOutlined style={{ color: PVE_COLORS.primary }} />
+}
+
+function isDegraded(r: ClusterResource): boolean {
+  if (r.type === 'node' && r.status && r.status !== 'online') return true
+  if (isGuest(r) && r.lock) return true
+  if (typeof r.cpu === 'number' && r.cpu > 0.9) return true
+  if (typeof r.maxdisk === 'number' && r.maxdisk > 0 && typeof r.disk === 'number' && r.disk / r.maxdisk > 0.85) {
+    return true
+  }
+  return false
+}
+
 /**
- * Cây tài nguyên: Datacenter → Node → (VM/CT/Storage).
- *
- * Nguồn dữ liệu là store `resources`, đổ vào từ nhịp poll `/cluster/resources`
- * trong main — component này không tự gọi API, chỉ hiển thị.
+ * Cây tài nguyên Hi-Tech: LED status + neon hover (không nhồi CPU/RAM mọi hàng).
  */
 export function ResourceTree({ connectionId }: { connectionId: string }): React.JSX.Element {
   const { t } = useTranslation()
@@ -53,15 +65,11 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
     const nodes = rows.filter((r) => r.type === 'node').sort((a, b) => (a.node ?? '').localeCompare(b.node ?? ''))
 
     const nodeChildren = (nodeName: string): DataNode[] => {
-      const children = rows.filter(
-        (r) => r.node === nodeName && (isGuest(r) || r.type === 'storage'),
-      )
-
+      const children = rows.filter((r) => r.node === nodeName && (isGuest(r) || r.type === 'storage'))
       const filtered = query.trim() === '' ? children : children.filter((r) => matches(r, query))
 
       return filtered
         .sort((a, b) => {
-          // Guest trước storage, rồi theo vmid/tên.
           if (isGuest(a) !== isGuest(b)) return isGuest(a) ? -1 : 1
           return (a.vmid ?? 0) - (b.vmid ?? 0) || (a.name ?? a.storage ?? '').localeCompare(b.name ?? b.storage ?? '')
         })
@@ -70,17 +78,20 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
           isLeaf: true,
           selectable: isGuest(r) || r.type === 'storage',
           title: isGuest(r) ? (
-            <Flex align="center" gap={6}>
-              <Badge status={statusOf(r)} />
-              <span>{guestLabel(r)}</span>
+            <Flex className="resource-tree-row" align="center" gap={6}>
+              <LedDot kind={ledKindFromResourceStatus({ type: r.type, status: r.status })} />
+              <GuestIcon type={r.type} />
+              <span style={{ fontSize: 12 }}>{guestLabel(r)}</span>
               {r.template === 1 && <Tag style={{ marginInlineStart: 4 }}>Template</Tag>}
+              {isDegraded(r) && <WarningOutlined style={{ color: PVE_COLORS.warning, fontSize: 11 }} />}
             </Flex>
           ) : (
-            <Flex align="center" gap={6}>
+            <Flex className="resource-tree-row" align="center" gap={6}>
+              <LedDot kind={ledKindFromResourceStatus({ type: 'storage', status: r.status })} />
               <DatabaseOutlined style={{ color: token.colorTextTertiary }} />
-              <Typography.Text>{r.storage}</Typography.Text>
+              <Typography.Text style={{ fontSize: 12 }}>{r.storage}</Typography.Text>
               {r.plugintype && (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                   ({r.plugintype})
                 </Typography.Text>
               )}
@@ -92,8 +103,6 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
     const nodeEntries: DataNode[] = []
     for (const n of nodes) {
       const children = nodeChildren(n.node ?? '')
-      // Ẩn node khỏi kết quả tìm kiếm nếu không có gì khớp bên trong, trừ khi
-      // đang không lọc gì cả.
       if (query.trim() !== '' && children.length === 0) continue
       const nodeName = n.node ?? ''
       nodeEntries.push({
@@ -101,20 +110,23 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
         selectable: true,
         title: (
           <Flex
+            className="resource-tree-row"
             align="center"
             gap={6}
             justify="space-between"
             style={{ width: '100%', paddingInlineEnd: 4, cursor: 'pointer' }}
             onClick={(e) => {
-              // Click tiêu đề node (không phải nút Shell) → mở NodeDrawer.
-              // Ant Design Tree đôi khi nuốt select khi click vùng title phức tạp.
               e.stopPropagation()
               select(n)
             }}
           >
             <Flex align="center" gap={6}>
-              <Badge status={statusOf(n)} />
-              <Typography.Text strong>{nodeName}</Typography.Text>
+              <LedDot kind={ledKindFromResourceStatus({ type: 'node', status: n.status })} />
+              <CloudServerOutlined style={{ color: PVE_COLORS.info }} />
+              <Typography.Text strong style={{ fontSize: 12 }}>
+                {nodeName}
+              </Typography.Text>
+              {isDegraded(n) && <WarningOutlined style={{ color: PVE_COLORS.warning, fontSize: 11 }} />}
             </Flex>
             <span
               onClick={(e) => e.stopPropagation()}
@@ -129,7 +141,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
       })
     }
     return nodeEntries
-  }, [resources, query, token, connectionId])
+  }, [resources, query, token, connectionId, select])
 
   const allNodeKeys = useMemo(() => treeData.map((n) => n.key), [treeData])
 
@@ -151,6 +163,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
           prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          className="neon-border"
         />
       </div>
 
@@ -173,7 +186,7 @@ export function ResourceTree({ connectionId }: { connectionId: string }): React.
               select(resource)
             }
           }}
-          style={{ flex: 1, overflow: 'auto', paddingInline: 4 }}
+          style={{ flex: 1, overflow: 'auto', paddingInline: 4, background: 'transparent' }}
         />
       )}
     </Flex>

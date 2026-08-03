@@ -28,9 +28,8 @@ export function useAppShortcuts(opts?: {
         return
       }
       if (action === 'search') {
-        const el = document.querySelector<HTMLInputElement>('[data-global-search]')
-        el?.focus()
-        el?.select()
+        const el = document.querySelector<HTMLElement>('[data-global-search]')
+        el?.click()
         return
       }
       if (action === 'refresh') {

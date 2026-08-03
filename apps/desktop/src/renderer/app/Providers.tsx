@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { antdLocaleFor, readStoredLanguage } from '../i18n/locale'
 import type { SupportedLanguage } from '../i18n'
 import i18n from '../i18n'
+import { pveAntdToken } from '../theme/tokens'
 
 function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -51,9 +52,29 @@ export function Providers({ children }: { children: ReactNode }): React.JSX.Elem
         theme={{
           algorithm: [theme.darkAlgorithm, theme.compactAlgorithm],
           token: {
-            colorPrimary: '#e57000',
-            borderRadius: 4,
-            fontSize: 13,
+            ...pveAntdToken,
+          },
+          components: {
+            Layout: {
+              headerBg: pveAntdToken.colorBgElevated,
+              siderBg: pveAntdToken.colorBgContainer,
+              bodyBg: pveAntdToken.colorBgBase,
+              triggerBg: pveAntdToken.colorBgElevated,
+            },
+            Menu: {
+              darkItemBg: pveAntdToken.colorBgContainer,
+              darkSubMenuItemBg: pveAntdToken.colorBgContainer,
+              darkItemSelectedBg: 'rgba(0, 242, 254, 0.12)',
+              darkItemSelectedColor: pveAntdToken.colorInfo,
+              darkItemHoverBg: 'rgba(0, 242, 254, 0.08)',
+            },
+            Card: {
+              colorBgContainer: 'rgba(18, 24, 38, 0.85)',
+            },
+            Tree: {
+              directoryNodeSelectedBg: 'rgba(0, 242, 254, 0.12)',
+              directoryNodeSelectedColor: pveAntdToken.colorInfo,
+            },
           },
         }}
       >

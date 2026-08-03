@@ -1,16 +1,21 @@
 import { useMemo, useState } from 'react'
-import { Badge, Drawer, Empty, Flex, List, Tag, Typography, theme } from 'antd'
+import { Drawer, Empty, Flex, List, Tag, Typography, theme } from 'antd'
 import { DownOutlined, UpOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { parseUpid } from '@pve/api'
 import { useConnections } from '../../stores/connections'
 import { recentTasks, useTasks, type TaskEntry } from '../../stores/tasks'
+import { LedDot } from '../../components/TechUi'
+import { PVE_COLORS } from '../../theme/tokens'
 
-type BadgeStatus = 'processing' | 'success' | 'error' | 'default'
+function ledOf(task: TaskEntry): 'info' | 'online' | 'error' {
+  if (task.phase !== 'done') return 'info'
+  return task.exitstatus === 'OK' ? 'online' : 'error'
+}
 
-function badgeOf(task: TaskEntry): BadgeStatus {
-  if (task.phase !== 'done') return 'processing'
-  return task.exitstatus === 'OK' ? 'success' : 'error'
+function tagClassOf(task: TaskEntry): string {
+  if (task.phase !== 'done') return 'tech-tag-running'
+  return task.exitstatus === 'OK' ? 'tech-tag-ok' : 'tech-tag-fail'
 }
 
 function labelOf(task: TaskEntry): string {
@@ -20,12 +25,13 @@ function labelOf(task: TaskEntry): string {
   return `${kind} ${target}`.trim()
 }
 
+function statusLabel(task: TaskEntry): string {
+  if (task.phase !== 'done') return 'RUNNING'
+  return task.exitstatus === 'OK' ? 'OK' : 'FAIL'
+}
+
 /**
- * Dock nhật ký tác vụ ở đáy cửa sổ, gập/mở được.
- *
- * Đọc trực tiếp từ store `tasks` — không tự gọi API nào. Tác vụ xuất hiện ở đây
- * ngay khi bất kỳ nơi nào trong app gọi một endpoint trả về UPID (qua `TaskButton`
- * hoặc `pveRequest` trực tiếp), vì `pve.handlers` ở main tự động theo dõi mọi UPID.
+ * Dock nhật ký tác vụ — phong cách terminal neon.
  */
 export function TaskDock(): React.JSX.Element {
   const { t } = useTranslation()
@@ -36,7 +42,7 @@ export function TaskDock(): React.JSX.Element {
   const connections = useConnections((s) => s.connections)
 
   const tasks = useMemo(() => recentTasks(byUpid, 20), [byUpid])
-  const activeCount = tasks.filter((t) => t.phase !== 'done').length
+  const activeCount = tasks.filter((task) => task.phase !== 'done').length
 
   const nameOf = (connectionId: string): string =>
     connections.find((c) => c.id === connectionId)?.name ?? connectionId
@@ -58,15 +64,27 @@ export function TaskDock(): React.JSX.Element {
           cursor: 'pointer',
           font: 'inherit',
           fontSize: 12,
+          fontFamily: 'var(--pve-font-mono)',
         }}
       >
         {open ? <DownOutlined /> : <UpOutlined />}
         {t('tasks.dockTitle')}
-        {activeCount > 0 && <Badge count={activeCount} size="small" style={{ marginInlineStart: 4 }} />}
+        {activeCount > 0 && (
+          <Tag className="tech-tag-running" style={{ marginInlineStart: 4 }}>
+            {activeCount}
+          </Tag>
+        )}
       </button>
 
       {open && (
-        <div style={{ height: 160, overflow: 'auto', borderTop: `1px solid ${token.colorBorderSecondary}` }}>
+        <div
+          style={{
+            height: 168,
+            overflow: 'auto',
+            borderTop: `1px solid ${PVE_COLORS.cyanBorder}`,
+            background: 'rgba(11, 15, 25, 0.65)',
+          }}
+        >
           {tasks.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -83,18 +101,18 @@ export function TaskDock(): React.JSX.Element {
                   onClick={() => setViewing(task)}
                 >
                   <Flex align="center" gap={8} style={{ width: '100%' }}>
-                    <Badge status={badgeOf(task)} />
-                    <Typography.Text style={{ flex: 1 }} ellipsis>
+                    <LedDot kind={ledOf(task)} />
+                    <Typography.Text
+                      className="tech-mono"
+                      style={{ flex: 1, fontSize: 12 }}
+                      ellipsis
+                    >
                       {labelOf(task)}
                     </Typography.Text>
-                    <Tag>{nameOf(task.connectionId)}</Tag>
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                      {task.phase === 'done'
-                        ? task.exitstatus === 'OK'
-                          ? t('tasks.done')
-                          : t('tasks.failed')
-                        : t('tasks.running')}
-                    </Typography.Text>
+                    <Tag style={{ fontSize: 11 }}>{nameOf(task.connectionId)}</Tag>
+                    <Tag className={tagClassOf(task)} style={{ marginInlineEnd: 0 }}>
+                      {statusLabel(task)}
+                    </Tag>
                   </Flex>
                 </List.Item>
               )}
@@ -110,20 +128,18 @@ export function TaskDock(): React.JSX.Element {
 
 function TaskLogDrawer({ task, onClose }: { task: TaskEntry | null; onClose: () => void }): React.JSX.Element {
   return (
-    <Drawer
-      title={task ? labelOf(task) : ''}
-      open={task !== null}
-      onClose={onClose}
-      width={520}
-      destroyOnHidden
-    >
+    <Drawer title={task ? labelOf(task) : ''} open={task !== null} onClose={onClose} width={520} destroyOnHidden>
       {task && (
         <pre
+          className="tech-mono"
           style={{
-            fontFamily: '"Cascadia Mono", "Consolas", monospace',
             fontSize: 12,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
+            background: 'rgba(11, 15, 25, 0.85)',
+            border: `1px solid ${PVE_COLORS.cyanBorder}`,
+            borderRadius: 8,
+            padding: 12,
           }}
         >
           {task.log.map((line) => line.t).join('\n')}

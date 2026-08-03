@@ -1,16 +1,32 @@
 import { useState } from 'react'
-import { Badge, Button, Descriptions, Drawer, Flex, Skeleton, Space, Tabs, Tag, Typography } from 'antd'
 import {
+  App,
+  Button,
+  Card,
+  Descriptions,
+  Drawer,
+  Flex,
+  Skeleton,
+  Space,
+  Tabs,
+  Tag,
+  Typography,
+} from 'antd'
+import {
+  CameraOutlined,
   CodeOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   PoweroffOutlined,
   ReloadOutlined,
 } from '@ant-design/icons'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { TaskButton } from '../../components/TaskButton'
 import { RrdChart, formatBytes, formatPercent } from '../../components/RrdChart'
+import { LedDot } from '../../components/TechUi'
+import { CpuMemoryForm, type CpuMemoryValues } from './hardware/CpuMemoryForm'
+import { putGuestConfig } from './hardware/put-config'
 import { useConnections } from '../../stores/connections'
 import { useSelection } from '../../stores/selection'
 import { useClusterResources } from '../../hooks/useClusterResources'
@@ -25,6 +41,7 @@ import { HardwareTab } from './HardwareTab'
 import { OptionsTab } from './OptionsTab'
 import { PermissionsTab } from './PermissionsTab'
 import { SnapshotTab } from './SnapshotTab'
+import { PVE_COLORS } from '../../theme/tokens'
 
 interface GuestStatus {
   status: string
@@ -40,10 +57,12 @@ interface SnapshotListItem {
 }
 
 /**
- * Xem nhanh một guest: trạng thái trực tiếp, biểu đồ CPU/RAM, và nút vòng đời.
+ * Guest workspace rộng — action bar, 4 RRD, console, hardware side panel (bám mockup).
  */
 export function GuestDrawer(): React.JSX.Element {
   const { t } = useTranslation()
+  const { message } = App.useApp()
+  const queryClient = useQueryClient()
   const guest = useSelection((s) => s.selectedGuest)
   const select = useSelection((s) => s.select)
   const activeId = useConnections((s) => s.activeId)
@@ -53,12 +72,11 @@ export function GuestDrawer(): React.JSX.Element {
   const type = guest?.type as 'qemu' | 'lxc' | undefined
   const node = guest?.node
   const vmid = guest?.vmid
-  // Đổi guest → remount Tabs (key) về overview, không dùng effect reset
-  // (effect dễ đua với nút Console trên overview).
   const tabsKey = guest?.id ?? 'none'
 
   const canQuery = open && Boolean(type) && Boolean(node) && vmid !== undefined
   const basePath = type && `/nodes/{node}/${type}/{vmid}`
+  const configPath = basePath ? `${basePath}/config` : ''
 
   const statusQuery = useQuery({
     queryKey: canQuery ? pveQueryKey(activeId!, 'GET', `${basePath}/status/current`, { node, vmid }) : ['guest-status', 'idle'],
@@ -107,6 +125,7 @@ export function GuestDrawer(): React.JSX.Element {
   const canPower = can('VM.PowerMgmt', vmid !== undefined ? `/vms/${vmid}` : '/')
   const canAllocate = can('VM.Allocate', vmid !== undefined ? `/vms/${vmid}` : '/')
   const canModifyFw = can('Sys.Modify', '/')
+  const canConfig = can('VM.Config.CPU', vmid !== undefined ? `/vms/${vmid}` : '/') || can('VM.Config.Memory', vmid !== undefined ? `/vms/${vmid}` : '/')
   const denyPower = t('access.denied')
 
   const diskKeys = Object.keys(configQuery.data ?? {}).filter((k) =>
@@ -121,17 +140,22 @@ export function GuestDrawer(): React.JSX.Element {
     configQuery.data?.['template'] === '1'
   const rrdPoints = rrdQuery.data ?? []
   const snapNames = (snapsQuery.data ?? []).map((s) => s.name).filter((n) => n !== 'current')
+  const cfg = configQuery.data ?? {}
+  const digest = typeof cfg['digest'] === 'string' ? cfg['digest'] : undefined
+
+  const drawerWidth = typeof window !== 'undefined' ? Math.min(Math.round(window.innerWidth * 0.92), 1280) : 1100
 
   return (
     <Drawer
       title={
         guest ? (
           <Space>
-            <Badge status={running ? 'success' : 'default'} />
-            {guest.name}
-            <Tag>{type === 'qemu' ? 'VM' : 'CT'}</Tag>
+            <LedDot kind={running ? 'running' : 'stopped'} />
+            <Typography.Text strong style={{ color: '#fff' }}>
+              {type === 'qemu' ? 'VM' : 'CT'} {vmid} — {guest.name}
+            </Typography.Text>
+            <Tag className={running ? 'tech-tag-running' : undefined}>{status}</Tag>
             {isTemplate ? <Tag color="gold">{t('guest.templateBadge')}</Tag> : null}
-            <Typography.Text type="secondary">#{vmid}</Typography.Text>
           </Space>
         ) : (
           ''
@@ -142,8 +166,15 @@ export function GuestDrawer(): React.JSX.Element {
         setTab('overview')
         select(null)
       }}
-      width={720}
+      width={drawerWidth}
       destroyOnHidden
+      styles={{
+        body: { paddingTop: 12, background: PVE_COLORS.bgBase },
+        header: {
+          background: PVE_COLORS.bgElevated,
+          borderBottom: `1px solid ${PVE_COLORS.cyanBorder}`,
+        },
+      }}
     >
       {guest && activeId && basePath && type && node && vmid !== undefined && (
         <Tabs
@@ -155,70 +186,125 @@ export function GuestDrawer(): React.JSX.Element {
               key: 'overview',
               label: t('guest.tabOverview'),
               children: (
-                <Flex vertical gap={20}>
-                  <Descriptions column={1} size="small">
-                    <Descriptions.Item label={t('guest.node')}>{node}</Descriptions.Item>
-                    <Descriptions.Item label={t('common.status')}>
-                      {status ? t(`status.${status}` as 'status.running') : '—'}
-                    </Descriptions.Item>
-                    {statusQuery.data?.uptime !== undefined && statusQuery.data.uptime > 0 && (
-                      <Descriptions.Item label={t('guest.uptime')}>
-                        {formatUptime(statusQuery.data.uptime)}
-                      </Descriptions.Item>
-                    )}
-                  </Descriptions>
+                <Flex gap={16} align="start" wrap>
+                  <Flex vertical gap={16} style={{ flex: 1, minWidth: 320 }}>
+                    <Card className="tech-glass-card" size="small">
+                      <Flex justify="space-between" align="center" wrap gap={8}>
+                        <Space>
+                          <LedDot kind={running ? 'running' : 'stopped'} />
+                          <Typography.Text>
+                            {t('common.status')}: {status ? t(`status.${status}` as 'status.running') : '—'}
+                          </Typography.Text>
+                          {statusQuery.data?.uptime !== undefined && statusQuery.data.uptime > 0 && (
+                            <Typography.Text type="secondary" className="tech-mono" style={{ fontSize: 12 }}>
+                              {t('guest.uptime')}: {formatUptime(statusQuery.data.uptime)}
+                            </Typography.Text>
+                          )}
+                          <Typography.Text type="secondary">· {node}</Typography.Text>
+                        </Space>
+                        <Space wrap>
+                          <TaskButton
+                            connectionId={activeId}
+                            method="POST"
+                            path={`${basePath}/status/start`}
+                            params={{ node, vmid }}
+                            label={t('guest.start')}
+                            icon={<PlayCircleOutlined />}
+                            type="primary"
+                            disabled={running || Boolean(isTemplate)}
+                            allowed={canPower}
+                            denyReason={denyPower}
+                          />
+                          <TaskButton
+                            connectionId={activeId}
+                            method="POST"
+                            path={`${basePath}/status/shutdown`}
+                            params={{ node, vmid }}
+                            label={t('guest.shutdown')}
+                            icon={<PoweroffOutlined />}
+                            disabled={!running}
+                            allowed={canPower}
+                            denyReason={denyPower}
+                          />
+                          <Button icon={<CameraOutlined />} onClick={() => setTab('snapshot')}>
+                            {t('guest.tabSnapshot')}
+                          </Button>
+                          <Button type="default" icon={<CodeOutlined />} onClick={() => setTab('console')}>
+                            {t('guest.tabConsole')}
+                          </Button>
+                          <TaskButton
+                            connectionId={activeId}
+                            method="POST"
+                            path={`${basePath}/status/stop`}
+                            params={{ node, vmid }}
+                            label={t('guest.stop')}
+                            icon={<PauseCircleOutlined />}
+                            danger
+                            confirmMessage={t('guest.stopConfirm')}
+                            disabled={!running}
+                            allowed={canPower}
+                            denyReason={denyPower}
+                          />
+                          <TaskButton
+                            connectionId={activeId}
+                            method="POST"
+                            path={`${basePath}/status/reboot`}
+                            params={{ node, vmid }}
+                            label={t('guest.reboot')}
+                            icon={<ReloadOutlined />}
+                            disabled={!running}
+                            allowed={canPower}
+                            denyReason={denyPower}
+                          />
+                        </Space>
+                      </Flex>
+                    </Card>
 
-                  <Space wrap>
-                    <Button icon={<CodeOutlined />} onClick={() => setTab('console')}>
-                      {t('guest.tabConsole')}
-                    </Button>
-                    <TaskButton
+                    <Card className="tech-glass-card" size="small" title={t('guest.tabHardware')}>
+                      <Descriptions column={2} size="small">
+                        <Descriptions.Item label={t('guest.memory')}>
+                          {formatBytes(statusQuery.data?.mem ?? guest.mem ?? 0)} /{' '}
+                          {formatBytes(statusQuery.data?.maxmem ?? guest.maxmem ?? 0)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('guest.cpu')}>
+                          {String(cfg['cores'] ?? cfg['cpus'] ?? statusQuery.data?.cpus ?? '—')} cores
+                        </Descriptions.Item>
+                        <Descriptions.Item label="BIOS">{String(cfg['bios'] ?? '—')}</Descriptions.Item>
+                        <Descriptions.Item label="Machine">{String(cfg['machine'] ?? '—')}</Descriptions.Item>
+                        <Descriptions.Item label="SCSI">{String(cfg['scsihw'] ?? '—')}</Descriptions.Item>
+                        <Descriptions.Item label="Net">{String(cfg['net0'] ?? '—')}</Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+
+                    {rrdQuery.isLoading ? (
+                      <Skeleton active paragraph={{ rows: 6 }} />
+                    ) : (
+                      <Flex gap={12} wrap>
+                        <MiniChart title={t('guest.cpu')} points={rrdPoints} seriesKey="cpu" color={PVE_COLORS.success} format={formatPercent} />
+                        <MiniChart title={t('guest.memory')} points={rrdPoints} seriesKey="mem" color={PVE_COLORS.info} format={formatBytes} />
+                        <MiniChart title="Network" points={rrdPoints} seriesKey="netin" color={PVE_COLORS.primary} format={formatBytes} secondKey="netout" />
+                        <MiniChart title="Disk I/O" points={rrdPoints} seriesKey="diskread" color="#a78bfa" format={formatBytes} secondKey="diskwrite" />
+                      </Flex>
+                    )}
+
+                    <Card className="tech-glass-card" size="small" title={t('guest.tabConsole')}>
+                      <div style={{ minHeight: 280, border: `1px solid ${PVE_COLORS.cyanBorder}`, borderRadius: 8, overflow: 'hidden' }}>
+                        <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />
+                      </div>
+                    </Card>
+
+                    <GuestOps
                       connectionId={activeId}
-                      method="POST"
-                      path={`${basePath}/status/start`}
-                      params={{ node, vmid }}
-                      label={t('guest.start')}
-                      icon={<PlayCircleOutlined />}
-                      type="primary"
-                      disabled={running || Boolean(isTemplate)}
-                      allowed={canPower}
-                      denyReason={denyPower}
+                      node={node}
+                      type={type}
+                      vmid={vmid}
+                      nodes={nodeNames}
+                      diskKeys={diskKeys}
+                      nextId={nextIdQuery.data !== undefined ? Number(nextIdQuery.data) : undefined}
+                      isTemplate={Boolean(isTemplate)}
+                      snapshots={snapNames}
                     />
-                    <TaskButton
-                      connectionId={activeId}
-                      method="POST"
-                      path={`${basePath}/status/shutdown`}
-                      params={{ node, vmid }}
-                      label={t('guest.shutdown')}
-                      icon={<PoweroffOutlined />}
-                      disabled={!running}
-                      allowed={canPower}
-                      denyReason={denyPower}
-                    />
-                    <TaskButton
-                      connectionId={activeId}
-                      method="POST"
-                      path={`${basePath}/status/stop`}
-                      params={{ node, vmid }}
-                      label={t('guest.stop')}
-                      icon={<PauseCircleOutlined />}
-                      danger
-                      confirmMessage={t('guest.stopConfirm')}
-                      disabled={!running}
-                      allowed={canPower}
-                      denyReason={denyPower}
-                    />
-                    <TaskButton
-                      connectionId={activeId}
-                      method="POST"
-                      path={`${basePath}/status/reboot`}
-                      params={{ node, vmid }}
-                      label={t('guest.reboot')}
-                      icon={<ReloadOutlined />}
-                      disabled={!running}
-                      allowed={canPower}
-                      denyReason={denyPower}
-                    />
+
                     <TaskButton
                       connectionId={activeId}
                       method="DELETE"
@@ -231,55 +317,59 @@ export function GuestDrawer(): React.JSX.Element {
                       allowed={canAllocate}
                       denyReason={denyPower}
                     />
-                  </Space>
+                  </Flex>
 
-                  <GuestOps
-                    connectionId={activeId}
-                    node={node}
-                    type={type}
-                    vmid={vmid}
-                    nodes={nodeNames}
-                    diskKeys={diskKeys}
-                    nextId={
-                      nextIdQuery.data !== undefined ? Number(nextIdQuery.data) : undefined
-                    }
-                    isTemplate={Boolean(isTemplate)}
-                    snapshots={snapNames}
-                  />
-
-                  {rrdQuery.isLoading ? (
-                    <Skeleton active paragraph={{ rows: 4 }} />
-                  ) : (
-                    <Flex vertical gap={16}>
-                      <div>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {t('guest.cpu')}
-                        </Typography.Text>
-                        <RrdChart
-                          points={rrdPoints}
-                          series={[{ key: 'cpu', label: 'CPU', color: '#e57000', format: formatPercent }]}
-                        />
-                      </div>
-                      <div>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {t('guest.memory')}
-                        </Typography.Text>
-                        <RrdChart
-                          points={rrdPoints}
-                          series={[{ key: 'mem', label: 'RAM', color: '#1668dc', format: formatBytes }]}
-                        />
-                      </div>
-                    </Flex>
-                  )}
+                  <Card
+                    className="tech-glass-card"
+                    size="small"
+                    title={`${t('guest.tabHardware')} · quick`}
+                    style={{ width: 300, flexShrink: 0, position: 'sticky', top: 0 }}
+                  >
+                    {configQuery.isLoading ? (
+                      <Skeleton active />
+                    ) : (
+                      <CpuMemoryForm
+                        guestType={type}
+                        initialValues={{
+                          cores: Number(cfg['cores'] ?? 1),
+                          sockets: Number(cfg['sockets'] ?? 1),
+                          memory: Number(cfg['memory'] ?? 512),
+                          swap: cfg['swap'] !== undefined ? Number(cfg['swap']) : undefined,
+                        }}
+                        submitText={t('common.save')}
+                        onFinish={async (values: CpuMemoryValues) => {
+                          if (!canConfig) {
+                            message.error(denyPower)
+                            return
+                          }
+                          await putGuestConfig(
+                            activeId,
+                            node,
+                            type,
+                            vmid,
+                            {
+                              cores: values.cores,
+                              ...(type === 'qemu' ? { sockets: values.sockets } : {}),
+                              memory: values.memory,
+                              ...(type === 'lxc' ? { swap: values.swap } : {}),
+                            },
+                            digest,
+                          )
+                          message.success(t('common.save'))
+                          void queryClient.invalidateQueries({
+                            queryKey: pveQueryKey(activeId, 'GET', configPath, { node, vmid }),
+                          })
+                        }}
+                      />
+                    )}
+                  </Card>
                 </Flex>
               ),
             },
             {
               key: 'console',
               label: t('guest.tabConsole'),
-              children: (
-                <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />
-              ),
+              children: <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
             },
             {
               key: 'hardware',
@@ -334,11 +424,38 @@ export function GuestDrawer(): React.JSX.Element {
   )
 }
 
+function MiniChart({
+  title,
+  points,
+  seriesKey,
+  color,
+  format,
+  secondKey,
+}: {
+  title: string
+  points: Record<string, number>[]
+  seriesKey: string
+  color: string
+  format: (v: number) => string
+  secondKey?: string
+}): React.JSX.Element {
+  const series = [{ key: seriesKey, label: title, color, format }]
+  if (secondKey) series.push({ key: secondKey, label: secondKey, color: PVE_COLORS.warning, format })
+  return (
+    <Card className="tech-glass-card" size="small" style={{ flex: 1, minWidth: 200 }}>
+      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+        {title}
+      </Typography.Text>
+      <RrdChart height={90} points={points} series={series} />
+    </Card>
+  )
+}
+
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  if (days > 0) return `${days} ngày ${hours} giờ`
-  if (hours > 0) return `${hours} giờ ${minutes} phút`
-  return `${minutes} phút`
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
 }

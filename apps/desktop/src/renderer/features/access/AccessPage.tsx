@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { App, Button, Checkbox, Form, Input, Modal, Select, Space, Tabs, Typography } from 'antd'
-import { useQueryClient } from '@tanstack/react-query'
+import { App, Button, Card, Checkbox, Form, Input, Modal, Select, Space, Tabs, Tag, Typography } from 'antd'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PveGrid } from '../../components/PveGrid'
 import { PveForm } from '../../components/PveForm'
 import { CapButton } from '../../components/CapButton'
+import { LedDot } from '../../components/TechUi'
 import { useConnections } from '../../stores/connections'
 import { usePermissions } from '../../hooks/usePermissions'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
@@ -32,12 +33,16 @@ export function AccessPage(): React.JSX.Element {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Typography.Title level={4} style={{ margin: 0 }}>
-        {t('nav.access')}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-        {t('access.hint')}
-      </Typography.Paragraph>
+      <div className="tech-glass-card" style={{ padding: 16 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          {t('nav.access')}
+        </Typography.Title>
+        <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
+          {t('access.hint')}
+        </Typography.Paragraph>
+        <AccessSummaryCards connectionId={activeId} />
+      </div>
+      <div className="tech-glass-card" style={{ padding: 12 }}>
       <Tabs
         items={[
           {
@@ -82,6 +87,47 @@ export function AccessPage(): React.JSX.Element {
           },
         ]}
       />
+      </div>
+    </Space>
+  )
+}
+
+function AccessSummaryCards({ connectionId }: { connectionId: string }): React.JSX.Element {
+  const usersQ = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/access/users', {}),
+    queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/access/users', {}),
+  })
+  const tfaQ = useQuery({
+    queryKey: pveQueryKey(connectionId, 'GET', '/access/tfa', {}),
+    queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/access/tfa', {}),
+    retry: false,
+  })
+  const userCount = usersQ.data?.length ?? 0
+  const tfaCount = Array.isArray(tfaQ.data) ? tfaQ.data.length : 0
+
+  return (
+    <Space wrap style={{ marginTop: 12 }}>
+      <Card size="small" className="neon-border" style={{ minWidth: 140 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+          Users
+        </Typography.Text>
+        <div className="tech-mono" style={{ fontSize: 20 }}>
+          {userCount}
+        </div>
+      </Card>
+      <Card size="small" className="neon-border" style={{ minWidth: 140 }}>
+        <Space>
+          <LedDot kind={tfaCount > 0 ? 'online' : 'stopped'} />
+          <div>
+            <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+              TFA entries
+            </Typography.Text>
+            <div className="tech-mono" style={{ fontSize: 20 }}>
+              {tfaCount}
+            </div>
+          </div>
+        </Space>
+      </Card>
     </Space>
   )
 }
@@ -573,6 +619,21 @@ function TokensTab({
           { title: t('access.tokenid'), dataIndex: 'tokenid', width: 160 },
           { title: t('access.comment'), dataIndex: 'comment' },
           { title: 'privsep', dataIndex: 'privsep', width: 80 },
+          {
+            title: t('common.status'),
+            key: 'status',
+            width: 110,
+            render: (_: unknown, row: Row) => {
+              const exp = row['expire']
+              const expired =
+                typeof exp === 'number' && exp > 0 && exp * 1000 < Date.now()
+              return (
+                <Tag className={expired ? 'tech-tag-fail' : 'tech-tag-ok'}>
+                  {expired ? 'EXPIRED' : 'ACTIVE'}
+                </Tag>
+              )
+            },
+          },
         ]}
       />
       <Modal open={open} title={t('access.addToken')} footer={null} onCancel={() => setOpen(false)} destroyOnHidden>

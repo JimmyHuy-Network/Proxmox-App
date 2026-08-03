@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { App, Button, Form, Input, InputNumber, Modal, Select, Space, Tabs, Typography } from 'antd'
+import { App, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Tabs, Tag, Typography } from 'antd'
 import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -30,12 +30,15 @@ export function FirewallPage(): React.JSX.Element {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Typography.Title level={4} style={{ margin: 0 }}>
-        {t('nav.firewall')}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-        {t('firewall.hint')}
-      </Typography.Paragraph>
+      <div className="tech-glass-card" style={{ padding: 16 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          {t('nav.firewall')}
+        </Typography.Title>
+        <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
+          {t('firewall.hint')}
+        </Typography.Paragraph>
+      </div>
+      <div className="tech-glass-card" style={{ padding: 12 }}>
       <Tabs
         items={[
           {
@@ -71,6 +74,7 @@ export function FirewallPage(): React.JSX.Element {
           },
         ]}
       />
+      </div>
     </Space>
   )
 }
@@ -128,9 +132,23 @@ export function RulesPanel({
         }
         columns={[
           { title: '#', dataIndex: 'pos', width: 50 },
-          { title: t('firewall.action'), dataIndex: 'action', width: 100 },
+          {
+            title: t('firewall.action'),
+            dataIndex: 'action',
+            width: 110,
+            render: (action: string) => (
+              <Tag className={action === 'ACCEPT' ? 'tech-tag-accept' : 'tech-tag-drop'}>{action}</Tag>
+            ),
+          },
           { title: t('firewall.type'), dataIndex: 'type', width: 70 },
-          { title: t('firewall.enable'), dataIndex: 'enable', width: 70 },
+          {
+            title: t('firewall.enable'),
+            dataIndex: 'enable',
+            width: 80,
+            render: (enable: number | string | boolean) => (
+              <Switch size="small" checked={enable === 1 || enable === '1' || enable === true} disabled />
+            ),
+          },
           { title: 'proto', dataIndex: 'proto', width: 70 },
           { title: 'dport', dataIndex: 'dport', width: 90 },
           { title: t('access.comment'), dataIndex: 'comment' },
