@@ -42,9 +42,27 @@ export function attachTerminal(term: Terminal, socket: WebSocket): TermAttachHan
   const ping = window.setInterval(() => send(TERM_PING), PING_INTERVAL_MS)
 
   // Báo kích thước ban đầu — server không biết terminal rộng bao nhiêu cho tới khi được nói.
-  const sendInitialSize = (): void => send(encodeTermResize(term.cols, term.rows))
-  if (socket.readyState === WebSocket.OPEN) sendInitialSize()
-  else socket.addEventListener('open', sendInitialSize, { once: true })
+  // Sau resize, gửi một Enter để đánh thức agetty/login (LXC/serial thường clear
+  // màn hình rồi đứng im cho tới khi có phím — đúng triệu chứng console đen + cursor).
+  const sendInitialSize = (): void => {
+    if (socket.readyState !== WebSocket.OPEN) return
+    if (term.cols > 0 && term.rows > 0) send(encodeTermResize(term.cols, term.rows))
+  }
+  const wakeConsole = (): void => {
+    if (socket.readyState !== WebSocket.OPEN) return
+    send(encodeTermData('\r'))
+  }
+  const scheduleInitialSize = (): void => {
+    sendInitialSize()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sendInitialSize()
+        wakeConsole()
+      })
+    })
+  }
+  if (socket.readyState === WebSocket.OPEN) scheduleInitialSize()
+  else socket.addEventListener('open', scheduleInitialSize, { once: true })
 
   return {
     dispose() {

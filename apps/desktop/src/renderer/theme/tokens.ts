@@ -11,7 +11,8 @@ export const PVE_COLORS = {
   border: '#232f48',
   borderSecondary: '#1b253b',
   cyanGlow: 'rgba(0, 242, 254, 0.25)',
-  cyanBorder: 'rgba(0, 242, 254, 0.2)',
+  /** Đồng bộ với `--pve-cyan-border` trong styles.css */
+  cyanBorder: 'rgba(0, 242, 254, 0.22)',
 } as const
 
 export const pveAntdToken = {

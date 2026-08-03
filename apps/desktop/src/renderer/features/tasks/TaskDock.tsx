@@ -6,7 +6,6 @@ import { parseUpid } from '@pve/api'
 import { useConnections } from '../../stores/connections'
 import { recentTasks, useTasks, type TaskEntry } from '../../stores/tasks'
 import { LedDot } from '../../components/TechUi'
-import { PVE_COLORS } from '../../theme/tokens'
 
 function ledOf(task: TaskEntry): 'info' | 'online' | 'error' {
   if (task.phase !== 'done') return 'info'
@@ -81,7 +80,7 @@ export function TaskDock(): React.JSX.Element {
           style={{
             height: 168,
             overflow: 'auto',
-            borderTop: `1px solid ${PVE_COLORS.cyanBorder}`,
+            borderTop: '1px solid var(--pve-cyan-border)',
             background: 'rgba(11, 15, 25, 0.65)',
           }}
         >
@@ -137,7 +136,7 @@ function TaskLogDrawer({ task, onClose }: { task: TaskEntry | null; onClose: () 
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             background: 'rgba(11, 15, 25, 0.85)',
-            border: `1px solid ${PVE_COLORS.cyanBorder}`,
+            border: '1px solid var(--pve-cyan-border)',
             borderRadius: 8,
             padding: 12,
           }}
