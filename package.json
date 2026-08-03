@@ -5,6 +5,10 @@
   "description": "Ứng dụng desktop điều khiển Proxmox VE với đầy đủ tính năng như web UI",
   "author": "Proxmox-App",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phamhuyti/Proxmox-App.git"
+  },
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -18,6 +22,7 @@
     "dev:mock": "npm run dev --workspace=@pve/mock-server",
     "build": "npm run build --workspace=@pve/desktop",
     "build:win": "npm run build:win --workspace=@pve/desktop",
+    "release:win": "npm run release:win --workspace=@pve/desktop",
     "typecheck": "npm run typecheck --workspace=@pve/desktop",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml}\"",
