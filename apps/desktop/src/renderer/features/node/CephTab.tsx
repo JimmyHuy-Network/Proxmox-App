@@ -52,7 +52,7 @@ export function CephTab({
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       {warn && health !== '—' && (
-        <Alert type="warning" showIcon message={`${t('node.cephHealth')}: ${health}`} />
+        <Alert type="warning" showIcon title={`${t('node.cephHealth')}: ${health}`} />
       )}
 
       <Descriptions size="small" bordered column={2}>

@@ -33,16 +33,17 @@ spawn a shell that still shows 22.14, run `nvm use default` or prepend
 ### Renderer crash: /dev/shm nhỏ (non-obvious, dễ tưởng nhầm là bug app)
 
 `/dev/shm` trên VM này chỉ **64 MB** (mặc định container). Mở GuestDrawer (nhiều canvas
-uPlot + noVNC) làm renderer Chromium **crash chắc chắn** — cửa sổ đen, log
-`render-process-gone { reason: 'crashed', exitCode: 5 }`. Không phải bug logic của app.
-Chạy dev với switch chuẩn của Chromium:
+uPlot + noVNC) làm renderer Chromium **crash chắc chắn** nếu không có
+`--disable-dev-shm-usage`. App main **tự thêm** switch này khi
+`statfs('/dev/shm')` < 256 MB (Linux). E2E cũng truyền flag tương ứng.
+
+Dev thủ công vẫn có thể thêm:
 
 ```bash
 DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npx electron-vite dev -- --disable-dev-shm-usage
 ```
 
-(từ `apps/desktop`; với electron-e2e thêm arg này vào `electron.launch`). Todo
-`stability-devshm` trong `.cursor/plans/stability_polish_plan.md` sẽ làm app tự thêm switch.
+(từ `apps/desktop`).
 
 ### Headless credential storage caveat (non-obvious)
 

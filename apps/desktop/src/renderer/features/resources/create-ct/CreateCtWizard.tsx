@@ -198,7 +198,7 @@ export function CreateCtWizard({
       }
     >
       <Steps size="small" current={draft.step} items={stepItems} style={{ marginBottom: 24 }} />
-      {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}
+      {error ? <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} /> : null}
 
       {draft.step === 0 ? (
         <Form layout="vertical">

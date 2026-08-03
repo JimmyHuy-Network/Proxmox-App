@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useConnections } from '../stores/connections'
 import { useClusterResources } from '../hooks/useClusterResources'
+import { clusterFromStatus, useClusterStatus } from '../hooks/useClusterStatus'
 import { useSelection } from '../stores/selection'
 import { useTasks, recentTasks } from '../stores/tasks'
 import { isGuest, type ClusterResource } from '../features/resources/types'
@@ -112,6 +113,11 @@ export function Dashboard(): React.JSX.Element {
   })
   const rrdPoints = rrdQuery.data ?? []
 
+  const statusQuery = useClusterStatus(connected ? activeId : null, 30_000)
+  const cluster = clusterFromStatus(statusQuery.data)
+  const clusterName = cluster?.name ?? 'cluster'
+  const clusterNodeCount = typeof cluster?.nodes === 'number' ? cluster.nodes : nodes.length
+
   const logQuery = useQuery({
     queryKey: connected ? pveQueryKey(activeId!, 'GET', '/cluster/log', { max: 20 }) : ['dash-log', 'idle'],
     queryFn: () => pveRequest<ClusterLogRow[]>(activeId!, 'GET', '/cluster/log', { max: 20 }),
@@ -150,11 +156,19 @@ export function Dashboard(): React.JSX.Element {
   }
 
   const summaryCards = [
-    { label: t('dashboard.nodesOnline'), value: `${nodesOnline}/${nodes.length}`, hint: 'Online' },
-    { label: t('dashboard.vms'), value: String(vms.length), hint: `Running ${vmsRunning}/${vms.length}` },
-    { label: t('dashboard.cts'), value: String(cts.length), hint: `Running ${ctsRunning}/${cts.length}` },
-    { label: t('dashboard.storageActive'), value: String(storageActive), hint: 'Active' },
-    { label: t('dashboard.uptime'), value: fmtUptime(maxUptime), hint: 'Cluster uptime' },
+    { label: t('dashboard.nodesOnline'), value: `${nodesOnline}/${nodes.length}`, hint: t('dashboard.hintOnline') },
+    {
+      label: t('dashboard.vms'),
+      value: `${vmsRunning}/${vms.length}`,
+      hint: t('dashboard.hintRunning', { running: vmsRunning, total: vms.length }),
+    },
+    {
+      label: t('dashboard.cts'),
+      value: `${ctsRunning}/${cts.length}`,
+      hint: t('dashboard.hintRunning', { running: ctsRunning, total: cts.length }),
+    },
+    { label: t('dashboard.storageActive'), value: String(storageActive), hint: t('dashboard.hintActive') },
+    { label: t('dashboard.uptime'), value: fmtUptime(maxUptime), hint: t('dashboard.hintClusterUptime') },
   ]
 
   return (
@@ -165,7 +179,7 @@ export function Dashboard(): React.JSX.Element {
             {t('dashboard.title')}
           </Typography.Title>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            pve-cluster ({nodes.length} nodes) · {timeframeLabel}
+            {t('dashboard.clusterSubtitle', { name: clusterName, count: clusterNodeCount })} · {timeframeLabel}
           </Typography.Text>
         </div>
         <Space>
@@ -255,13 +269,14 @@ export function Dashboard(): React.JSX.Element {
             series={[
               { key: 'cpu', label: 'CPU', color: PVE_COLORS.info, format: formatPercent },
               { key: 'memused', label: 'RAM', color: PVE_COLORS.primary, format: formatBytes },
+              { key: 'rootused', label: 'Disk', color: PVE_COLORS.success, format: formatBytes },
             ]}
           />
         </Card>
 
         <Card className="tech-glass-card" size="small" title={t('dashboard.topByCpu')} style={{ flex: 1.4, minWidth: 240 }}>
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            Nodes
+            {t('dashboard.metricNodes')}
           </Typography.Text>
           {topNodes.map((n) => (
             <button
@@ -280,7 +295,7 @@ export function Dashboard(): React.JSX.Element {
             </button>
           ))}
           <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-            Guests
+            {t('dashboard.metricGuests')}
           </Typography.Text>
           {topGuests.map((g) => (
             <button
@@ -303,15 +318,15 @@ export function Dashboard(): React.JSX.Element {
         <Card className="tech-glass-card" size="small" title={t('dashboard.quickMetrics')} style={{ flex: 1, minWidth: 180 }}>
           <Flex vertical gap={10}>
             <Flex justify="space-between">
-              <Typography.Text type="secondary">Cores</Typography.Text>
+              <Typography.Text type="secondary">{t('dashboard.metricCores')}</Typography.Text>
               <span className="tech-mono">{cpuTotal}</span>
             </Flex>
             <Flex justify="space-between">
-              <Typography.Text type="secondary">RAM</Typography.Text>
+              <Typography.Text type="secondary">{t('dashboard.metricRam')}</Typography.Text>
               <span className="tech-mono">{formatBytes(memTotal)}</span>
             </Flex>
             <Flex justify="space-between">
-              <Typography.Text type="secondary">Storage</Typography.Text>
+              <Typography.Text type="secondary">{t('dashboard.metricStorage')}</Typography.Text>
               <span className="tech-mono">{formatBytes(diskTotal)}</span>
             </Flex>
             <Flex justify="space-between">
@@ -328,7 +343,7 @@ export function Dashboard(): React.JSX.Element {
               </Space>
             </Flex>
             <Flex justify="space-between">
-              <Typography.Text type="secondary">Guests</Typography.Text>
+              <Typography.Text type="secondary">{t('dashboard.metricGuests')}</Typography.Text>
               <span className="tech-mono">
                 {vmsRunning + ctsRunning}/{guests.length}
               </span>

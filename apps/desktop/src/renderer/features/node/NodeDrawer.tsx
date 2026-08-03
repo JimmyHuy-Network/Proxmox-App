@@ -75,7 +75,7 @@ export function NodeDrawer(): React.JSX.Element {
   return (
     <Drawer
       open={open}
-      width={860}
+      size={860}
       onClose={() => select(null)}
       destroyOnHidden
       title={

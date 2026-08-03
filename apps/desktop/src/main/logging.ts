@@ -1,6 +1,11 @@
-import { app } from 'electron'
+import { app, dialog, type WebContents } from 'electron'
 import log from 'electron-log/main'
 import { join } from 'node:path'
+
+/** Tối đa 3 lần reload trong 60s cho cùng webContents — quá thì hiện dialog và thoát. */
+const RELOAD_WINDOW_MS = 60_000
+const RELOAD_MAX = 3
+const reloadStamps = new WeakMap<WebContents, number[]>()
 
 /**
  * Logging + crash hooks (GĐ 9).
@@ -24,8 +29,32 @@ export function installLogging(): typeof log {
     log.error('unhandledRejection', reason)
   })
 
-  app.on('render-process-gone', (_event, _webContents, details) => {
+  app.on('render-process-gone', (_event, webContents, details) => {
     log.error('render-process-gone', details)
+    if (details.reason !== 'crashed' && details.reason !== 'oom') return
+    if (webContents.isDestroyed()) return
+
+    const now = Date.now()
+    const recent = (reloadStamps.get(webContents) ?? []).filter((t) => now - t < RELOAD_WINDOW_MS)
+    if (recent.length >= RELOAD_MAX) {
+      void dialog
+        .showMessageBox({
+          type: 'error',
+          title: 'Renderer crashed',
+          message: 'Cửa sổ ứng dụng bị crash liên tiếp và sẽ đóng.',
+          detail: `reason=${details.reason} exitCode=${details.exitCode}`,
+          buttons: ['OK'],
+        })
+        .then(() => {
+          app.quit()
+        })
+      return
+    }
+
+    recent.push(now)
+    reloadStamps.set(webContents, recent)
+    log.warn('render-process-gone: reloading renderer', { attempt: recent.length, reason: details.reason })
+    webContents.reload()
   })
   app.on('child-process-gone', (_event, details) => {
     log.error('child-process-gone', details)

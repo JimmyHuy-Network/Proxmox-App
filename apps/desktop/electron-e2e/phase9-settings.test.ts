@@ -27,7 +27,7 @@ describe.skipIf(!enabled)('Playwright electron phase 9 settings', () => {
     server.mock.setLatency(0, 0)
     userData = mkdtempSync(join(tmpdir(), 'pve-e2e-p9-'))
     app = await electron.launch({
-      args: [mainEntry, `--user-data-dir=${userData}`],
+      args: [mainEntry, `--user-data-dir=${userData}`, '--disable-dev-shm-usage'],
       env: {
         ...process.env,
         NODE_TLS_REJECT_UNAUTHORIZED: '0',

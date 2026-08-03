@@ -34,7 +34,7 @@ export function CertTrustModal({
       confirmLoading={loading}
       width={620}
     >
-      <Alert type="warning" showIcon message={t('cert.intro')} style={{ marginBottom: 16 }} />
+      <Alert type="warning" showIcon title={t('cert.intro')} style={{ marginBottom: 16 }} />
       {cert && (
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label={t('cert.fingerprint')}>

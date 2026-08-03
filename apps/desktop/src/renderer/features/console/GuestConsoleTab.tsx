@@ -80,7 +80,7 @@ export function GuestConsoleTab({
         </Button>
       </Space>
 
-      <Alert type="info" showIcon message={t('console.guestHint')} />
+      <Alert type="info" showIcon title={t('console.guestHint')} />
 
       {kind === 'term' ? (
         <div style={{ height: 420 }} key={`term-${generation}`}>

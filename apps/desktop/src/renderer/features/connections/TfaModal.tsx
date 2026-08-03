@@ -47,7 +47,7 @@ export function TfaModal({
         onPressEnter={submit}
         style={{ letterSpacing: 6, textAlign: 'center', fontSize: 20 }}
       />
-      {error && <Alert type="error" showIcon message={error} style={{ marginTop: 12 }} />}
+      {error && <Alert type="error" showIcon title={error} style={{ marginTop: 12 }} />}
     </Modal>
   )
 }

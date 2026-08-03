@@ -238,7 +238,7 @@ export function VncPane({
         </Space>
       </Flex>
 
-      {message !== null && <Alert type="warning" showIcon message={message} />}
+      {message !== null && <Alert type="warning" showIcon title={message} />}
 
       <div
         ref={hostRef}

@@ -33,7 +33,7 @@ describe.skipIf(!enabled)('Playwright electron phase 8 access caps', () => {
     const mockUrl = server.url.replace(/\/$/, '')
 
     app = await electron.launch({
-      args: [mainEntry, `--user-data-dir=${userData}`],
+      args: [mainEntry, `--user-data-dir=${userData}`, '--disable-dev-shm-usage'],
       env: {
         ...process.env,
         NODE_TLS_REJECT_UNAUTHORIZED: '0',

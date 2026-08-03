@@ -1,5 +1,6 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { statfsSync } from 'node:fs'
+import { app, BrowserWindow, crashReporter, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { IpcChannel, type AuthEvent, type PveEvent } from '@pve/ipc'
 import { installCsp } from './security/csp'
@@ -22,12 +23,35 @@ import { installAppMenu } from './menu'
 const isDev = !app.isPackaged
 const relay = new ConsoleRelayServer()
 
+/** Container /dev/shm nhỏ (thường 64 MB) → Chromium OOM khi nhiều canvas; chuyển sang /tmp. */
+const DEV_SHM_MIN_BYTES = 256 * 1024 * 1024
+
+function maybeDisableDevShmUsage(): void {
+  if (process.platform !== 'linux') return
+  try {
+    const stats = statfsSync('/dev/shm')
+    const bytes = Number(stats.bsize) * Number(stats.blocks)
+    if (bytes > 0 && bytes < DEV_SHM_MIN_BYTES) {
+      app.commandLine.appendSwitch('disable-dev-shm-usage')
+    }
+  } catch {
+    // Không đọc được /dev/shm → bỏ qua; người dùng vẫn có thể truyền flag tay.
+  }
+}
+
 /** Đẩy sự kiện tới mọi cửa sổ renderer (cửa sổ chính + console tách). */
 function pushEvent(event: PveEvent): void {
   for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed() || window.webContents.isDestroyed()) continue
     window.webContents.send(IpcChannel.PveEvent, event)
   }
 }
+
+// Switch Chromium phải gắn trước whenReady.
+maybeDisableDevShmUsage()
+
+// Minidump local (userData/Crashpad) — không upload.
+crashReporter.start({ submitURL: '', uploadToServer: false })
 
 // Một tiến trình duy nhất: mở app lần hai sẽ dựng lại cửa sổ đang có thay vì tạo
 // tiến trình mới. Quan trọng vì main giữ trạng thái xác thực và các poller.

@@ -96,7 +96,7 @@ export function HardwareTab({
 
   if (q.isLoading) return <Skeleton active paragraph={{ rows: 6 }} />
   if (q.isError) {
-    return <Alert type="error" showIcon message={q.error instanceof Error ? q.error.message : 'Lỗi'} />
+    return <Alert type="error" showIcon title={q.error instanceof Error ? q.error.message : 'Lỗi'} />
   }
 
   if (items.length === 0) {

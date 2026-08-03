@@ -24,7 +24,7 @@ win:
         - x64
   artifactName: Proxmox-VE-Manager-${version}-${arch}.${ext}
   # Ký số: xem docs/decision-windows-signing.md. Đặt CSC_LINK + CSC_KEY_PASSWORD khi có cert.
-  # icon: resources/icon.ico (tuỳ chọn — thiếu thì electron-builder dùng mặc định)
+  icon: resources/icon.png
 
 nsis:
   oneClick: false
