@@ -25,5 +25,6 @@ npm run build:win
 
 ## Icon
 
-Đặt `apps/desktop/resources/icon.ico` (+ `icon.png` 512×512). Builder đọc từ
+`apps/desktop/resources/icon.png` (1024×1024) đã có trên main. Khi đóng gói Windows,
+tuỳ chọn thêm `icon.ico` (electron-builder có thể derive từ png). Builder đọc từ
 `buildResources: resources`.
