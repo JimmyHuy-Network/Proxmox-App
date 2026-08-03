@@ -40,6 +40,13 @@ export function VncPane({
   const [generation, setGeneration] = useState(0)
   const [quality, setQuality] = useState(6)
 
+  // Phụ thuộc primitive — tránh remount khi parent tạo `request` mới mỗi render.
+  const connectionId = request?.connectionId
+  const kind = request?.kind
+  const node = request?.node
+  const vmid = request?.vmid
+  const vmtype = request?.vmtype
+
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -51,12 +58,18 @@ export function VncPane({
     void (async () => {
       let url = presetRelayUrl
       if (!url) {
-        if (!request) {
+        if (!connectionId || !kind || !node) {
           setStatus('failed')
           setMessage('Thiếu request hoặc relayUrl')
           return
         }
-        const reply = await window.pve.console.open(request)
+        const reply = await window.pve.console.open({
+          connectionId,
+          kind,
+          node,
+          vmid,
+          vmtype,
+        })
         if (cancelled) return
         if (!reply.ok || !reply.data) {
           setStatus('failed')
@@ -131,7 +144,7 @@ export function VncPane({
     }
     // quality chỉ áp lúc tạo session / khi user kéo slider (effect riêng).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generation, presetRelayUrl, request])
+  }, [generation, presetRelayUrl, connectionId, kind, node, vmid, vmtype])
 
   useEffect(() => {
     const rfb = rfbRef.current

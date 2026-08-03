@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Alert, Button, Flex, Radio, Space, message } from 'antd'
 import { DesktopOutlined, CodeOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -27,13 +27,14 @@ export function GuestConsoleTab({
   const [kind, setKind] = useState<ConsoleKind>(type === 'lxc' ? 'term' : 'vnc')
   const [generation, setGeneration] = useState(0)
 
-  const request: ConsoleOpenRequest = {
-    connectionId,
-    kind,
-    node,
-    vmid,
-    vmtype: type,
-  }
+  const request = useMemo<ConsoleOpenRequest>(
+    () => ({ connectionId, kind, node, vmid, vmtype: type }),
+    [connectionId, kind, node, vmid, type],
+  )
+  const vncRequest = useMemo<ConsoleOpenRequest>(
+    () => ({ ...request, kind: 'vnc' }),
+    [request],
+  )
 
   const detach = async (): Promise<void> => {
     if (kind === 'spice') return
@@ -87,7 +88,7 @@ export function GuestConsoleTab({
         </div>
       ) : (
         <div style={{ height: 420 }} key={`vnc-${generation}`}>
-          <VncPane request={{ ...request, kind: 'vnc' }} onDetach={() => void detach()} />
+          <VncPane request={vncRequest} onDetach={() => void detach()} />
         </div>
       )}
     </Flex>

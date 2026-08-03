@@ -1,5 +1,5 @@
 import type { TLSSocket } from 'node:tls'
-import WebSocket from 'ws'
+import WebSocket, { type RawData } from 'ws'
 import type { ConsoleCloseReason, ConsoleKind, ConsoleOpenRequest } from '@pve/ipc'
 import type { ConsoleEndpoint } from '../pve/connection.ts'
 import type { RelaySession } from './relay-server.ts'
@@ -150,15 +150,42 @@ function createUpstreamRelaySession(init: {
       ws.binaryType = 'nodebuffer'
 
       let handshakeDone = false
-      let handshakeBuf = ''
+      let handshakeBuf = Buffer.alloc(0)
       let closed = false
+      // Renderer thường gửi resize ngay khi socket open, trước khi upstream trả OK.
+      // Drop những frame này → PTY LXC/node không nhận kích thước → console đen rỗng.
+      const pendingFromClient: Array<{ data: RawData; isBinary: boolean }> = []
 
       const finish = (reason: ConsoleCloseReason, message?: string): void => {
         if (closed) return
         closed = true
+        pendingFromClient.length = 0
         init.hooks?.onClosed?.(reason, message)
         if (client.readyState === client.OPEN) client.close()
         if (ws.readyState === ws.OPEN || ws.readyState === ws.CONNECTING) ws.close()
+      }
+
+      const forwardToUpstream = (data: RawData, isBinary: boolean): void => {
+        if (ws.readyState !== ws.OPEN) return
+        // Giữ nguyên loại frame: termproxy nhận protocol string qua text frame
+        // (giống web UI); binary thì chuyển nguyên Buffer.
+        if (isBinary) {
+          ws.send(data)
+          return
+        }
+        ws.send(typeof data === 'string' ? data : toBuffer(data).toString('utf8'))
+      }
+
+      const completeHandshake = (rest: Buffer): void => {
+        handshakeDone = true
+        handshakeBuf = Buffer.alloc(0)
+        for (const frame of pendingFromClient) {
+          forwardToUpstream(frame.data, frame.isBinary)
+        }
+        pendingFromClient.length = 0
+        if (rest.length > 0 && client.readyState === client.OPEN) {
+          client.send(rest)
+        }
       }
 
       ws.on('open', () => {
@@ -174,40 +201,56 @@ function createUpstreamRelaySession(init: {
         ws.send(Buffer.from(`${init.proxy.user}:${init.proxy.ticket}\n`, 'utf8'))
       })
 
-      ws.on('message', (data: Buffer) => {
+      ws.on('message', (data: RawData, isBinary: boolean) => {
+        const chunk = toBuffer(data)
+        void isBinary
         if (!handshakeDone) {
-          handshakeBuf += data.toString('utf8')
-          if (!handshakeBuf.includes('OK')) {
+          handshakeBuf = Buffer.concat([handshakeBuf, chunk])
+          const okAt = handshakeBuf.indexOf(OK_MARKER)
+          if (okAt < 0) {
             if (handshakeBuf.length > 64) {
               finish('auth-failed', 'Handshake console thất bại')
             }
             return
           }
-          handshakeDone = true
-          // Phần sau "OK" (nếu có trong cùng gói) chuyển tiếp cho client.
-          const idx = handshakeBuf.indexOf('OK')
-          const rest = handshakeBuf.slice(idx + 2).replace(/^\r?\n/, '')
-          handshakeBuf = ''
-          if (rest.length > 0 && client.readyState === client.OPEN) {
-            client.send(Buffer.from(rest, 'utf8'))
-          }
+          // Phần sau "OK" (+ optional CR/LF) chuyển tiếp raw — không decode UTF-8
+          // lại để tránh làm vỡ byte terminal nếu dính cùng gói.
+          let restStart = okAt + OK_MARKER.length
+          if (handshakeBuf[restStart] === 0x0d) restStart += 1
+          if (handshakeBuf[restStart] === 0x0a) restStart += 1
+          completeHandshake(handshakeBuf.subarray(restStart))
           return
         }
 
-        if (client.readyState === client.OPEN) client.send(data)
+        if (client.readyState === client.OPEN) client.send(chunk)
       })
 
       ws.on('close', () => finish('upstream-closed'))
       ws.on('error', (err) => finish('upstream-error', err.message))
 
-      client.on('message', (data: Buffer) => {
-        if (!handshakeDone) return
-        if (ws.readyState === ws.OPEN) ws.send(data)
+      client.on('message', (data: RawData, isBinary: boolean) => {
+        if (!handshakeDone) {
+          pendingFromClient.push({ data, isBinary })
+          return
+        }
+        forwardToUpstream(data, isBinary)
       })
       client.on('close', () => finish('client'))
       client.on('error', () => finish('client'))
     },
   }
+}
+
+const OK_MARKER = Buffer.from('OK', 'utf8')
+
+function toBuffer(data: RawData): Buffer {
+  if (Buffer.isBuffer(data)) return data
+  if (typeof data === 'string') return Buffer.from(data, 'utf8')
+  if (data instanceof ArrayBuffer) return Buffer.from(data)
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+  }
+  return Buffer.from(String(data), 'utf8')
 }
 
 function buildVncWebsocketPath(open: ConsoleOpenRequest, proxy: ProxyTicket): string {

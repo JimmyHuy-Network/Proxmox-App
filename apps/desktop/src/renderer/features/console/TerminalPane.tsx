@@ -41,6 +41,14 @@ export function TerminalPane({
   const [sessionTitle, setSessionTitle] = useState(title ?? '')
   const [generation, setGeneration] = useState(0)
 
+  // Phụ thuộc primitive — parent thường tạo `request` object mới mỗi render
+  // (GuestDrawer poll ~3s) nên không được đưa cả object vào deps.
+  const connectionId = request?.connectionId
+  const kind = request?.kind
+  const node = request?.node
+  const vmid = request?.vmid
+  const vmtype = request?.vmtype
+
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -85,12 +93,18 @@ export function TerminalPane({
     void (async () => {
       let url = presetRelayUrl
       if (!url) {
-        if (!request) {
+        if (!connectionId || !kind || !node) {
           setStatus('failed')
           setMessage('Thiếu request hoặc relayUrl')
           return
         }
-        const reply = await window.pve.console.open(request)
+        const reply = await window.pve.console.open({
+          connectionId,
+          kind,
+          node,
+          vmid,
+          vmtype,
+        })
         if (cancelled) return
         if (!reply.ok || !reply.data) {
           setStatus('failed')
@@ -135,7 +149,7 @@ export function TerminalPane({
       term.dispose()
       termRef.current = null
     }
-  }, [generation, presetRelayUrl, request])
+  }, [generation, presetRelayUrl, connectionId, kind, node, vmid, vmtype])
 
   const reconnect = useCallback(() => {
     socketRef.current?.close()

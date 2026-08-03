@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Card, message } from 'antd'
 import { DEMO_CONNECTION_ID, type ConsoleOpenRequest } from '@pve/ipc'
 import { TerminalPane } from '../features/console/TerminalPane'
@@ -18,9 +19,13 @@ export function ConsolePage(): React.JSX.Element {
   const phase = useConnections((s) => (s.activeId ? s.phases[s.activeId] : undefined))
   const connected = activeId !== null && phase === 'authenticated'
 
-  const request: ConsoleOpenRequest = connected
-    ? { connectionId: activeId, kind: 'term', node: 'pve1' }
-    : DEMO_REQUEST
+  const request = useMemo<ConsoleOpenRequest>(
+    () =>
+      connected && activeId
+        ? { connectionId: activeId, kind: 'term', node: 'pve1' }
+        : DEMO_REQUEST,
+    [connected, activeId],
+  )
 
   return (
     <Card styles={{ body: { height: 'calc(100vh - 200px)' } }}>

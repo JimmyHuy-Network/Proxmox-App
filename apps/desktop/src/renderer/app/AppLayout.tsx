@@ -73,7 +73,7 @@ function ConnectionSwitcher(): React.JSX.Element | null {
         })),
       }}
     >
-      <Space className="neon-border" style={{ cursor: 'pointer', padding: '2px 10px', borderRadius: 8 }}>
+      <Space className="header-chrome" style={{ cursor: 'pointer' }}>
         <ApiOutlined style={{ color: PVE_COLORS.info }} />
         {active ? active.name : '—'}
         <LedDot
@@ -125,7 +125,7 @@ function ClusterHealthChips({ connectionId }: { connectionId: string }): React.J
   const showCeph = cephQuery.isSuccess && Boolean(cephStatus)
 
   return (
-    <Flex gap={8} align="center" wrap>
+    <Flex gap={10} align="center" wrap={false}>
       <span className="health-chip" title={joinQuery.data?.totem?.cluster_name}>
         <LedDot kind={clusterOk ? 'online' : nodes.length ? 'warn' : 'stopped'} />
         {t('nav.healthCluster')}{' '}
@@ -226,14 +226,18 @@ export function AppLayout(): React.JSX.Element {
           </div>
         </Flex>
 
+        <div className="header-divider" aria-hidden />
+
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
           {connected && activeId ? <GlobalSearch connectionId={activeId} /> : null}
         </div>
 
-        <Flex align="center" gap={10} wrap style={{ flexShrink: 0 }}>
+        {connected ? <div className="header-divider" aria-hidden /> : null}
+
+        <Flex align="center" gap={12} wrap={false} style={{ flexShrink: 0 }}>
           {connected && activeId ? <ClusterHealthChips connectionId={activeId} /> : null}
           {connected ? (
-            <Space size={6}>
+            <Space size={8}>
               <Button
                 size="small"
                 type="primary"
@@ -282,7 +286,7 @@ export function AppLayout(): React.JSX.Element {
           width={248}
           theme="dark"
           style={{
-            borderRight: `1px solid ${PVE_COLORS.cyanBorder}`,
+            borderRight: '1px solid var(--pve-cyan-border)',
             display: 'flex',
             flexDirection: 'column',
             background: token.colorBgContainer,
@@ -361,7 +365,7 @@ export function AppLayout(): React.JSX.Element {
             style={{
               padding: 0,
               background: token.colorBgElevated,
-              borderTop: `1px solid ${PVE_COLORS.cyanBorder}`,
+              borderTop: '1px solid var(--pve-cyan-border)',
             }}
           >
             <TaskDock />
