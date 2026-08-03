@@ -57,9 +57,8 @@ trong [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md). Chi
 **Updater:** `electron-builder.yml` đã bật `publish` → GitHub Releases
 (`phamhuyti/Proxmox-App`). Packaged app check sau 5s + nút Settings. Dev → UI
 `disabled (dev)`. CI: tag `v*` → [`.github/workflows/release.yml`](../.github/workflows/release.yml)
-build NSIS + upload release (`latest.yml`). Repo **private** → client cần
-`GH_TOKEN` (hoặc mở public) để tải artifact; tuỳ chọn test feed generic bằng
-`PVE_UPDATE_URL`.
+build NSIS + upload release (`latest.yml`). Repo **public** → client tải
+artifact không cần token; tuỳ chọn test feed generic bằng `PVE_UPDATE_URL`.
 
 **Ký số:** unsigned + tài liệu; CI dùng `CSC_LINK` / `CSC_KEY_PASSWORD` khi có cert.
 
@@ -73,9 +72,8 @@ build NSIS + upload release (`latest.yml`). Repo **private** → client cần
 
 0. **Trước hết:** làm [stability_polish_plan.md](../.cursor/plans/stability_polish_plan.md)
    (bug từ audit §7 — crash /dev/shm, hồi phục renderer, health chips đứng im, E2E 8/9…).
-1. Mua EV/OV; gán `CSC_*` vào secrets CI (publish GitHub + workflow Release đã có).
-   (`icon.png` đã = mockup; tuỳ chọn `.ico`). Repo private → cân nhắc public
-   hoặc cấp `GH_TOKEN` readonly cho máy cài app.
+1. Mua EV/OV; gán `CSC_*` vào secrets CI (publish GitHub + workflow Release đã có;
+   repo đã public). (`icon.png` đã = mockup; tuỳ chọn `.ico`)
 2. Virtualize Tree/table khi `huge` (400 guest) nếu profiler còn nóng — audit 08/2026 đo
    GUI thực tế với 400 guest vẫn mượt (tree/search/drawer), chưa cần ưu tiên.
 3. Đối chiếu định kỳ với PVE thật — [nested-pve-hyperv.md](nested-pve-hyperv.md).
