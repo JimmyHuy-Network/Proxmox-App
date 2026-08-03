@@ -128,6 +128,7 @@ export function SettingsPage(): React.JSX.Element {
         </Typography.Paragraph>
         <Space>
           <Button
+            disabled={status.state === 'disabled' && status.reason === 'dev'}
             onClick={() => {
               void check().then(() => message.info(t('settings.updateChecked')))
             }}

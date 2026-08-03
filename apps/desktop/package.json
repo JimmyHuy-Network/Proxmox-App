@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "description": "Ứng dụng desktop Proxmox VE",
+  "author": "Proxmox-App",
   "main": "./out/main/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phamhuyti/Proxmox-App.git"
+  },
   "//type": "CommonJS có chủ đích: preload chạy trong sandbox thì Electron không hỗ trợ ESM.",
   "scripts": {
     "dev": "electron-vite dev",
@@ -11,6 +16,7 @@
     "build": "npm run typecheck && electron-vite build",
     "build:win": "npm run build && electron-builder --win",
     "build:unpack": "npm run build && electron-builder --dir",
+    "release:win": "npm run build && electron-builder --win --publish always",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:electron-e2e": "npm run build && ELECTRON_E2E=1 xvfb-run -a npx vitest run electron-e2e --config ../../vitest.config.ts"
   },

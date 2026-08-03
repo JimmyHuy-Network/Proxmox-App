@@ -55,13 +55,13 @@ describe.skipIf(!enabled)('Playwright electron phase 9 settings', () => {
   it('trang Settings hiện phiên bản + cập nhật disabled (dev)', async () => {
     await page.getByRole('link', { name: /Cài đặt|Settings/i }).click()
     await page.getByText(/Phiên bản app|App version/i).first().waitFor({ timeout: 15_000 })
-    await page.getByRole('button', { name: /Kiểm tra cập nhật|Check for updates/i }).waitFor({
+    const checkBtn = page.getByRole('button', { name: /Kiểm tra cập nhật|Check for updates/i })
+    await checkBtn.waitFor({ timeout: 10_000 })
+    // Dev build → updater disabled; nút kiểm tra khoá vì reason=dev
+    await page.getByText(/Cập nhật tự động chưa bật \(dev\)|Auto-update disabled \(dev\)/i).first().waitFor({
       timeout: 10_000,
     })
-    // Dev build → updater disabled
-    await page.getByText(/dev|disabled|chưa bật|Not checked|Đang dùng|auto-update/i).first().waitFor({
-      timeout: 10_000,
-    })
+    await pwExpect(checkBtn).toBeDisabled()
   }, 60_000)
 
   it('đổi ngôn ngữ sang English', async () => {

@@ -35,9 +35,12 @@ nsis:
   shortcutName: Proxmox VE Manager
   deleteAppDataOnUninstall: false
 
-# Auto-update (electron-updater): bỏ comment và chọn provider khi phát hành.
-# publish:
-#   provider: github
-#   owner: phamhuyti
-#   repo: Proxmox-App
-publish: null
+# Auto-update: electron-builder ghi app-update.yml khi đóng gói; electron-updater
+# đọc feed GitHub Releases (latest.yml + artifact). CI: tag v* → workflow Release.
+# Repo đang private → client cần GH_TOKEN (hoặc repo public) để tải release;
+# xem docs/handoff.md § updater.
+publish:
+  provider: github
+  owner: phamhuyti
+  repo: Proxmox-App
+  releaseType: release

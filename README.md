@@ -202,6 +202,35 @@ npm run build:unpack --workspace=@pve/desktop
 
 Installer **chưa ký số** — SmartScreen sẽ cảnh báo khi cài.
 
+### Phát hành + auto-update
+
+`electron-builder` publish lên **GitHub Releases** (`phamhuyti/Proxmox-App`).
+Workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) chạy khi
+push tag `v*` (hoặc `workflow_dispatch`):
+
+```bash
+# ví dụ phát hành 0.2.0
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Hoặc local (cần `GH_TOKEN` có quyền release):
+
+```bash
+npm run release:win
+```
+
+Bản cài packaged tự `checkForUpdates` (GitHub `latest.yml`). Dev build hiện
+“Cập nhật tự động chưa bật (dev)”. Test feed generic không cần đóng gói:
+
+```bash
+PVE_UPDATE_URL=https://example.com/updates npm run dev
+```
+
+**Lưu ý:** repo đang private — client update cần `GH_TOKEN` trên máy người dùng
+(hoặc mở public repo) để electron-updater đọc release. Ký số: xem
+[`docs/decision-windows-signing.md`](docs/decision-windows-signing.md).
+
 ---
 
 ## Kiểm thử & chất lượng
@@ -222,6 +251,7 @@ npm run lint
 | `npm run dev:mock` | Mock PVE HTTPS `:8006` |
 | `npm run build` | Build production vào `apps/desktop/out/` |
 | `npm run build:win` | Build + electron-builder Windows (NSIS) |
+| `npm run release:win` | Build Windows + publish GitHub Releases |
 | `npm test` | Toàn bộ test |
 | `npm run typecheck` | `tsc` main/preload + renderer |
 | `npm run lint` | ESLint |

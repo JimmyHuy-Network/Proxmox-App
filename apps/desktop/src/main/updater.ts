@@ -2,6 +2,9 @@ import { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { IpcChannel, type UpdateStatus } from '@pve/ipc'
 import { log } from './logging'
+import { classifyUpdateError } from './updater-errors'
+
+export { classifyUpdateError } from './updater-errors'
 
 let status: UpdateStatus = { state: 'idle' }
 let wired = false
@@ -16,11 +19,14 @@ function pushStatus(next: UpdateStatus): void {
 /**
  * Auto-update qua electron-updater (GĐ 9).
  *
- * Chỉ chạy khi app đã đóng gói và `publish` được cấu hình trong electron-builder.
- * Dev / bản chưa publish → trạng thái `disabled`.
+ * - Packaged + `publish` GitHub trong electron-builder → check sau 5s, auto-download.
+ * - Dev: mặc định `disabled` (reason `dev`).
+ * - Dev có `PVE_UPDATE_URL` (generic feed) → bật kiểm thử UI/updater mà không đóng gói.
  */
 export function installUpdater(isPackaged: boolean): void {
-  if (!isPackaged) {
+  const feedUrl = process.env['PVE_UPDATE_URL']?.trim()
+
+  if (!isPackaged && !feedUrl) {
     status = { state: 'disabled', reason: 'dev' }
     return
   }
@@ -31,6 +37,15 @@ export function installUpdater(isPackaged: boolean): void {
   autoUpdater.logger = log
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+
+  if (feedUrl) {
+    // Generic server (local static / R2 / CDN) — ghi đè feed từ app-update.yml.
+    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl.replace(/\/$/, '') })
+    if (!isPackaged) {
+      autoUpdater.forceDevUpdateConfig = true
+    }
+    log.info('updater feed override', { url: feedUrl, packaged: isPackaged })
+  }
 
   autoUpdater.on('checking-for-update', () => pushStatus({ state: 'checking' }))
   autoUpdater.on('update-available', (info) => {
@@ -47,11 +62,7 @@ export function installUpdater(isPackaged: boolean): void {
   })
   autoUpdater.on('error', (error) => {
     const message = error instanceof Error ? error.message : String(error)
-    if (/publish|No update|ERR_UPDATER|latest\.yml|404/i.test(message)) {
-      pushStatus({ state: 'disabled', reason: message.slice(0, 200) })
-    } else {
-      pushStatus({ state: 'error', message })
-    }
+    pushStatus(classifyUpdateError(message))
     log.error('autoUpdater', error)
   })
 
@@ -67,13 +78,13 @@ export function getUpdateStatus(): UpdateStatus {
 }
 
 export async function checkForUpdatesNow(): Promise<UpdateStatus> {
-  if (status.state === 'disabled') return status
+  if (status.state === 'disabled' && status.reason === 'dev') return status
   try {
     pushStatus({ state: 'checking' })
     await autoUpdater.checkForUpdates()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    pushStatus({ state: 'error', message })
+    pushStatus(classifyUpdateError(message))
   }
   return status
 }
