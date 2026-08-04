@@ -1,6 +1,6 @@
 {
   "name": "proxmox-app",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Ứng dụng desktop điều khiển Proxmox VE với đầy đủ tính năng như web UI",
   "author": "Proxmox-App",
