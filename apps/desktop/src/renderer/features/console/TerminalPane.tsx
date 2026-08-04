@@ -186,8 +186,8 @@ export function TerminalPane({
         </Space>
       </Flex>
 
-      {showDemoBadge && <Alert type="info" showIcon message={t('console.hint')} />}
-      {message !== null && <Alert type="warning" showIcon message={message} />}
+      {showDemoBadge && <Alert type="info" showIcon title={t('console.hint')} />}
+      {message !== null && <Alert type="warning" showIcon title={message} />}
 
       <div
         ref={hostRef}

@@ -55,7 +55,7 @@ export function SnapshotTab({
           }}
         >
           <Form.Item name="snapname" label={t('guest.snapshotName')} rules={[{ required: true }]}>
-            <Input />
+            <Input data-testid="snapshot-name-input" />
           </Form.Item>
           <Form.Item name="description" label={t('guest.snapshotDescription')}>
             <Input.TextArea rows={2} />

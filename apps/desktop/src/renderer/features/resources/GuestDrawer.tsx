@@ -3,6 +3,7 @@ import {
   App,
   Button,
   Card,
+  Checkbox,
   Descriptions,
   Drawer,
   Flex,
@@ -22,6 +23,7 @@ import {
 } from '@ant-design/icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { PVE_PROPERTY_SCHEMAS, formatPropertyString, parsePropertyString, propBool } from '@pve/api'
 import { TaskButton } from '../../components/TaskButton'
 import { RrdChart, formatBytes, formatPercent } from '../../components/RrdChart'
 import { LedDot } from '../../components/TechUi'
@@ -65,8 +67,16 @@ export function GuestDrawer(): React.JSX.Element {
   const queryClient = useQueryClient()
   const guest = useSelection((s) => s.selectedGuest)
   const select = useSelection((s) => s.select)
+  const guestTargetTab = useSelection((s) => s.guestTargetTab)
+  const clearGuestTargetTab = useSelection((s) => s.clearGuestTargetTab)
   const activeId = useConnections((s) => s.activeId)
-  const [tab, setTab] = useState('overview')
+  const [localTab, setLocalTab] = useState('overview')
+  const tab = guestTargetTab ?? localTab
+
+  const setTab = (key: string): void => {
+    clearGuestTargetTab()
+    setLocalTab(key)
+  }
 
   const open = guest !== null && activeId !== null
   const type = guest?.type as 'qemu' | 'lxc' | undefined
@@ -173,10 +183,11 @@ export function GuestDrawer(): React.JSX.Element {
       }
       open={open}
       onClose={() => {
-        setTab('overview')
+        clearGuestTargetTab()
+        setLocalTab('overview')
         select(null)
       }}
-      width={drawerWidth}
+      size={drawerWidth}
       destroyOnHidden
       styles={{
         body: { paddingTop: 12, background: PVE_COLORS.bgBase },
@@ -308,7 +319,7 @@ export function GuestDrawer(): React.JSX.Element {
                             format={formatBytes}
                           />
                           <MiniChart
-                            title="Network"
+                            title={t('guest.chartNetwork')}
                             points={rrdPoints}
                             seriesKey="netin"
                             color={PVE_COLORS.primary}
@@ -316,7 +327,7 @@ export function GuestDrawer(): React.JSX.Element {
                             secondKey="netout"
                           />
                           <MiniChart
-                            title="Disk I/O"
+                            title={t('guest.chartDiskIo')}
                             points={rrdPoints}
                             seriesKey="diskread"
                             color="#a78bfa"
@@ -358,13 +369,15 @@ export function GuestDrawer(): React.JSX.Element {
                           <LedDot kind={running ? 'running' : 'stopped'} />
                           {t('guest.tabConsole')}
                           <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                            {running ? 'connected' : t('status.stopped')}
+                            {running ? t('status.running') : t('status.stopped')}
                           </Typography.Text>
                         </Space>
                       }
                     >
                       <div className="guest-console-chrome" style={{ minHeight: 360 }}>
-                        <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />
+                        {tab === 'overview' ? (
+                          <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />
+                        ) : null}
                       </div>
                     </Card>
 
@@ -376,39 +389,51 @@ export function GuestDrawer(): React.JSX.Element {
                       {configQuery.isLoading || !configQuery.data ? (
                         <Skeleton active />
                       ) : (
-                        <CpuMemoryForm
-                          guestType={type}
-                          initialValues={{
-                            cores: coresInit,
-                            sockets: socketsInit,
-                            memory: memoryInit,
-                            swap: swapInit,
-                          }}
-                          submitText={t('common.save')}
-                          onFinish={async (values: CpuMemoryValues) => {
-                            if (!canConfig) {
-                              message.error(denyPower)
-                              return
-                            }
-                            await putGuestConfig(
-                              activeId,
-                              node,
-                              type,
-                              vmid,
-                              {
-                                cores: values.cores,
-                                ...(type === 'qemu' ? { sockets: values.sockets } : {}),
-                                memory: values.memory,
-                                ...(type === 'lxc' ? { swap: values.swap } : {}),
-                              },
-                              digest,
-                            )
-                            message.success(t('common.save'))
-                            void queryClient.invalidateQueries({
-                              queryKey: pveQueryKey(activeId, 'GET', configPath, { node, vmid }),
-                            })
-                          }}
-                        />
+                        <Flex vertical gap={12}>
+                          <CpuMemoryForm
+                            guestType={type}
+                            initialValues={{
+                              cores: coresInit,
+                              sockets: socketsInit,
+                              memory: memoryInit,
+                              swap: swapInit,
+                            }}
+                            submitText={t('common.save')}
+                            onFinish={async (values: CpuMemoryValues) => {
+                              if (!canConfig) {
+                                message.error(denyPower)
+                                return
+                              }
+                              await putGuestConfig(
+                                activeId,
+                                node,
+                                type,
+                                vmid,
+                                {
+                                  cores: values.cores,
+                                  ...(type === 'qemu' ? { sockets: values.sockets } : {}),
+                                  memory: values.memory,
+                                  ...(type === 'lxc' ? { swap: values.swap } : {}),
+                                },
+                                digest,
+                              )
+                              message.success(t('common.save'))
+                              void queryClient.invalidateQueries({
+                                queryKey: pveQueryKey(activeId, 'GET', configPath, { node, vmid }),
+                              })
+                            }}
+                          />
+                          <NetFirewallToggle
+                            connectionId={activeId}
+                            node={node}
+                            type={type}
+                            vmid={vmid}
+                            rawNet={typeof cfg['net0'] === 'string' ? cfg['net0'] : undefined}
+                            digest={digest}
+                            canModify={canConfig}
+                            denyReason={denyPower}
+                          />
+                        </Flex>
                       )}
                     </Card>
                   </div>
@@ -418,7 +443,10 @@ export function GuestDrawer(): React.JSX.Element {
             {
               key: 'console',
               label: t('guest.tabConsole'),
-              children: <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />,
+              children:
+                tab === 'console' ? (
+                  <GuestConsoleTab connectionId={activeId} node={node} type={type} vmid={vmid} />
+                ) : null,
             },
             {
               key: 'hardware',
@@ -499,6 +527,61 @@ function MiniChart({
       </Typography.Text>
       <RrdChart height={90} points={points} series={series} />
     </Card>
+  )
+}
+
+/** Toggle firewall=1 trên net0 — panel phải Overview (gap §5.4.4). */
+function NetFirewallToggle({
+  connectionId,
+  node,
+  type,
+  vmid,
+  rawNet,
+  digest,
+  canModify,
+  denyReason,
+}: {
+  connectionId: string
+  node: string
+  type: 'qemu' | 'lxc'
+  vmid: number
+  rawNet?: string
+  digest?: string
+  canModify: boolean
+  denyReason: string
+}): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const { message } = App.useApp()
+  const queryClient = useQueryClient()
+  if (!rawNet) return null
+
+  const schema = PVE_PROPERTY_SCHEMAS[type === 'lxc' ? 'lxc.net' : 'qemu.net']
+  const parsed = parsePropertyString(rawNet, schema)
+  const enabled = propBool(parsed, 'firewall') ?? false
+  const configPath = `/nodes/{node}/${type}/{vmid}/config`
+
+  return (
+    <Checkbox
+      checked={enabled}
+      disabled={!canModify}
+      onChange={(e) => {
+        void (async () => {
+          if (!canModify) {
+            message.error(denyReason)
+            return
+          }
+          const next = { ...parsed, firewall: e.target.checked ? true : undefined }
+          const encoded = formatPropertyString(next, schema)
+          await putGuestConfig(connectionId, node, type, vmid, { net0: encoded }, digest)
+          message.success(t('guest.hardwareSaved'))
+          void queryClient.invalidateQueries({
+            queryKey: pveQueryKey(connectionId, 'GET', configPath, { node, vmid }),
+          })
+        })()
+      }}
+    >
+      {t('guest.hardwareFirewall')} (net0)
+    </Checkbox>
   )
 }
 

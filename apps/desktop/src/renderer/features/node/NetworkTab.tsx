@@ -77,7 +77,7 @@ export function NetworkTab({
 
   return (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-      {pending && <Alert type="warning" showIcon message={t('node.networkPending')} />}
+      {pending && <Alert type="warning" showIcon title={t('node.networkPending')} />}
 
       <PveGrid<NetRow>
         connectionId={connectionId}

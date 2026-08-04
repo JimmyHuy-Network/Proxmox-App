@@ -80,7 +80,7 @@ export function PveGrid<T extends Record<string, unknown>>({
         <Alert
           type="error"
           showIcon
-          message={q.error instanceof Error ? q.error.message : 'Không tải được dữ liệu'}
+          title={q.error instanceof Error ? q.error.message : 'Không tải được dữ liệu'}
           action={
             <a onClick={() => void q.refetch()}>
               <ReloadOutlined />

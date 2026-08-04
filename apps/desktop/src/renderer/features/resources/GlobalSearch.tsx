@@ -29,9 +29,11 @@ function matches(r: ClusterResource, q: string): boolean {
 
 function Section({
   title,
+  count,
   children,
 }: {
   title: string
+  count: number
   children: React.ReactNode
 }): React.JSX.Element {
   return (
@@ -40,7 +42,10 @@ function Section({
         type="secondary"
         style={{ fontSize: 11, letterSpacing: 0.08, textTransform: 'uppercase' }}
       >
-        {title}
+        {title}{' '}
+        <span className="tech-mono" style={{ opacity: 0.85 }}>
+          ({count})
+        </span>
       </Typography.Text>
       <div style={{ marginTop: 8 }}>{children}</div>
     </div>
@@ -90,8 +95,8 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
     setValue('')
   }
 
-  const pick = (r: ClusterResource): void => {
-    select(r)
+  const pick = (r: ClusterResource, targetTab?: string): void => {
+    select(r, targetTab ?? null)
     close()
   }
 
@@ -157,13 +162,14 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
         ) : (
           <div style={{ maxHeight: '55vh', overflow: 'auto' }}>
             {filtered.qemu.length > 0 && (
-              <Section title={t('search.qemu')}>
+              <Section title={t('search.qemu')} count={filtered.qemu.length}>
                 {filtered.qemu.map((r) => (
                   <GuestSearchRow
                     key={r.id}
                     r={r}
                     connectionId={connectionId!}
                     onPick={() => pick(r)}
+                    onConsole={() => pick(r, 'console')}
                     consoleLabel={t('search.console')}
                     startLabel={t('guest.start')}
                     stopLabel={t('guest.stop')}
@@ -172,13 +178,14 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
               </Section>
             )}
             {filtered.lxc.length > 0 && (
-              <Section title={t('search.lxc')}>
+              <Section title={t('search.lxc')} count={filtered.lxc.length}>
                 {filtered.lxc.map((r) => (
                   <GuestSearchRow
                     key={r.id}
                     r={r}
                     connectionId={connectionId!}
                     onPick={() => pick(r)}
+                    onConsole={() => pick(r, 'console')}
                     consoleLabel={t('search.console')}
                     startLabel={t('guest.start')}
                     stopLabel={t('guest.stop')}
@@ -187,7 +194,7 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
               </Section>
             )}
             {filtered.storage.length > 0 && (
-              <Section title={t('search.storage')}>
+              <Section title={t('search.storage')} count={filtered.storage.length}>
                 {filtered.storage.map((r) => {
                   const pct =
                     r.maxdisk && r.maxdisk > 0 && typeof r.disk === 'number'
@@ -228,7 +235,7 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
               </Section>
             )}
             {filtered.nodes.length > 0 && (
-              <Section title={t('search.nodes')}>
+              <Section title={t('search.nodes')} count={filtered.nodes.length}>
                 {filtered.nodes.map((r) => (
                   <button key={r.id} type="button" onClick={() => pick(r)} style={rowBtnStyle}>
                     <Flex align="center" gap={10} style={{ width: '100%' }}>
@@ -236,7 +243,7 @@ export function GlobalSearch({ connectionId }: { connectionId: string | null }):
                       <Tag>node</Tag>
                       <Typography.Text strong>{r.node ?? r.id}</Typography.Text>
                       <Typography.Text type="secondary" style={{ marginInlineStart: 'auto', fontSize: 12 }}>
-                        {r.status === 'online' ? 'Online' : r.status ?? '—'}
+                        {r.status === 'online' ? t('dashboard.hintOnline') : r.status ?? '—'}
                       </Typography.Text>
                     </Flex>
                   </button>
@@ -268,6 +275,7 @@ function GuestSearchRow({
   r,
   connectionId,
   onPick,
+  onConsole,
   consoleLabel,
   startLabel,
   stopLabel,
@@ -275,6 +283,7 @@ function GuestSearchRow({
   r: ClusterResource
   connectionId: string
   onPick: () => void
+  onConsole: () => void
   consoleLabel: string
   startLabel: string
   stopLabel: string
@@ -320,7 +329,7 @@ function GuestSearchRow({
             danger
             disabled={!running}
           />
-          <Button size="small" icon={<CodeOutlined />} onClick={onPick}>
+          <Button size="small" icon={<CodeOutlined />} onClick={onConsole}>
             {consoleLabel}
           </Button>
         </Space>

@@ -12,37 +12,50 @@ interface SelectionState {
   selectedGuest: ClusterResource | null
   selectedStorage: ClusterResource | null
   selectedNode: ClusterResource | null
-  selectGuest: (guest: ClusterResource | null) => void
+  /** Tab guest drawer cần mở sau khi select (vd. GlobalSearch → Console). */
+  guestTargetTab: string | null
+  selectGuest: (guest: ClusterResource | null, targetTab?: string | null) => void
   selectStorage: (storage: ClusterResource | null) => void
   selectNode: (node: ClusterResource | null) => void
   /** Chọn từ cây: tự phân loại; các lựa chọn khác bị xóa. */
-  select: (resource: ClusterResource | null) => void
+  select: (resource: ClusterResource | null, targetTab?: string | null) => void
+  clearGuestTargetTab: () => void
 }
 
 export const useSelection = create<SelectionState>((set) => ({
   selectedGuest: null,
   selectedStorage: null,
   selectedNode: null,
-  selectGuest: (guest) => set({ selectedGuest: guest, selectedStorage: null, selectedNode: null }),
-  selectStorage: (storage) => set({ selectedStorage: storage, selectedGuest: null, selectedNode: null }),
-  selectNode: (node) => set({ selectedNode: node, selectedGuest: null, selectedStorage: null }),
-  select: (resource) => {
+  guestTargetTab: null,
+  selectGuest: (guest, targetTab = null) =>
+    set({ selectedGuest: guest, selectedStorage: null, selectedNode: null, guestTargetTab: targetTab }),
+  selectStorage: (storage) =>
+    set({ selectedStorage: storage, selectedGuest: null, selectedNode: null, guestTargetTab: null }),
+  selectNode: (node) =>
+    set({ selectedNode: node, selectedGuest: null, selectedStorage: null, guestTargetTab: null }),
+  select: (resource, targetTab = null) => {
     if (!resource) {
-      set({ selectedGuest: null, selectedStorage: null, selectedNode: null })
+      set({ selectedGuest: null, selectedStorage: null, selectedNode: null, guestTargetTab: null })
       return
     }
     if (isGuest(resource)) {
-      set({ selectedGuest: resource, selectedStorage: null, selectedNode: null })
+      set({
+        selectedGuest: resource,
+        selectedStorage: null,
+        selectedNode: null,
+        guestTargetTab: targetTab,
+      })
       return
     }
     if (resource.type === 'storage') {
-      set({ selectedStorage: resource, selectedGuest: null, selectedNode: null })
+      set({ selectedStorage: resource, selectedGuest: null, selectedNode: null, guestTargetTab: null })
       return
     }
     if (resource.type === 'node') {
-      set({ selectedNode: resource, selectedGuest: null, selectedStorage: null })
+      set({ selectedNode: resource, selectedGuest: null, selectedStorage: null, guestTargetTab: null })
       return
     }
-    set({ selectedGuest: null, selectedStorage: null, selectedNode: null })
+    set({ selectedGuest: null, selectedStorage: null, selectedNode: null, guestTargetTab: null })
   },
+  clearGuestTargetTab: () => set({ guestTargetTab: null }),
 }))

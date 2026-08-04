@@ -127,7 +127,7 @@ export function TaskDock(): React.JSX.Element {
 
 function TaskLogDrawer({ task, onClose }: { task: TaskEntry | null; onClose: () => void }): React.JSX.Element {
   return (
-    <Drawer title={task ? labelOf(task) : ''} open={task !== null} onClose={onClose} width={520} destroyOnHidden>
+    <Drawer title={task ? labelOf(task) : ''} open={task !== null} onClose={onClose} size={520} destroyOnHidden>
       {task && (
         <pre
           className="tech-mono"

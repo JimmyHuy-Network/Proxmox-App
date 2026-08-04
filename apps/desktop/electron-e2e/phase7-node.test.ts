@@ -52,7 +52,7 @@ describe.skipIf(!enabled)('Playwright electron phase 7 node/cluster', () => {
     const mockUrl = server.url.replace(/\/$/, '')
 
     app = await electron.launch({
-      args: [mainEntry, `--user-data-dir=${userData}`],
+      args: [mainEntry, `--user-data-dir=${userData}`, '--disable-dev-shm-usage'],
       env: {
         ...process.env,
         NODE_TLS_REJECT_UNAUTHORIZED: '0',

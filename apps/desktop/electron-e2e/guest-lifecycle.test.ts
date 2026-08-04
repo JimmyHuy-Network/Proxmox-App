@@ -65,7 +65,7 @@ describe.skipIf(!enabled)('Playwright electron guest lifecycle', () => {
     const mockUrl = server.url.replace(/\/$/, '')
 
     app = await electron.launch({
-      args: [mainEntry, `--user-data-dir=${userData}`],
+      args: [mainEntry, `--user-data-dir=${userData}`, '--disable-dev-shm-usage'],
       env: {
         ...process.env,
         NODE_TLS_REJECT_UNAUTHORIZED: '0',
@@ -103,7 +103,7 @@ describe.skipIf(!enabled)('Playwright electron guest lifecycle', () => {
       await drawer.getByText(/Đang chạy|Running/i).first().waitFor({ timeout: 60_000 })
 
       await page.getByRole('tab', { name: /Snapshot/i }).click()
-      await drawer.locator('.ant-card input').first().fill('pw-snap')
+      await drawer.getByTestId('snapshot-name-input').fill('pw-snap')
       await drawer.getByRole('button', { name: /Tạo snapshot|Create snapshot/i }).click()
       await drawer.getByText('pw-snap').first().waitFor({ timeout: 45_000 })
 

@@ -50,7 +50,7 @@ export function OptionsTab({
 
   if (q.isLoading) return <Skeleton active paragraph={{ rows: 8 }} />
   if (q.isError) {
-    return <Alert type="error" showIcon message={q.error instanceof Error ? q.error.message : 'Lỗi'} />
+    return <Alert type="error" showIcon title={q.error instanceof Error ? q.error.message : 'Lỗi'} />
   }
 
   const config = q.data ?? {}

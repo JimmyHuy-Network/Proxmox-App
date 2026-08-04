@@ -8,6 +8,7 @@ import { CapButton } from '../../components/CapButton'
 import { LedDot } from '../../components/TechUi'
 import { useConnections } from '../../stores/connections'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useClusterResources } from '../../hooks/useClusterResources'
 import { pveQueryKey, pveRequest } from '../../lib/pve'
 
 type Row = Record<string, unknown> & { [k: string]: unknown }
@@ -112,11 +113,15 @@ function AccessSummaryCards({ connectionId }: { connectionId: string }): React.J
     queryKey: pveQueryKey(connectionId, 'GET', '/access/acl', {}),
     queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/access/acl', {}),
   })
-  const firstNode = 'pve1'
+  const { resources: clusterResources } = useClusterResources(connectionId)
+  const firstOnline =
+    (clusterResources as { type?: string; node?: string; status?: string }[]).find(
+      (r) => r.type === 'node' && r.status === 'online',
+    )?.node ?? 'pve1'
   const certQ = useQuery({
-    queryKey: pveQueryKey(connectionId, 'GET', '/nodes/{node}/certificates/info', { node: firstNode }),
+    queryKey: pveQueryKey(connectionId, 'GET', '/nodes/{node}/certificates/info', { node: firstOnline }),
     queryFn: () =>
-      pveRequest<Row[]>(connectionId, 'GET', '/nodes/{node}/certificates/info', { node: firstNode }),
+      pveRequest<Row[]>(connectionId, 'GET', '/nodes/{node}/certificates/info', { node: firstOnline }),
     retry: false,
   })
 
@@ -202,10 +207,16 @@ function AccessSummaryCards({ connectionId }: { connectionId: string }): React.J
                           String(a.ugid ?? '') === userid &&
                           String(a.roleid ?? '') === role,
                       )
+                      const adminRole = /admin|administrator|pveadmin/i.test(role)
+                      const label = hit
+                        ? adminRole
+                          ? t('access.matrixFull')
+                          : t('access.matrixLimited')
+                        : '—'
                       return (
                         <td key={role} style={{ padding: 6 }}>
                           <span className={hit ? 'matrix-cell-full' : 'matrix-cell-none'}>
-                            {hit ? '✓' : '—'}
+                            {label}
                           </span>
                         </td>
                       )
@@ -230,7 +241,7 @@ function AccessSummaryCards({ connectionId }: { connectionId: string }): React.J
                 <Tag className="tech-tag-ok">TRUSTED</Tag>
               </Space>
               <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                {active?.host ?? firstNode}:8006
+                {active?.host ?? firstOnline}:8006
               </Typography.Text>
               <Typography.Text className="tech-mono" style={{ fontSize: 11 }} copyable>
                 {String(cert.fingerprint ?? cert.filename ?? cert.subject ?? '—')}
@@ -734,7 +745,16 @@ function TokensTab({
         columns={[
           { title: t('access.tokenid'), dataIndex: 'tokenid', width: 160 },
           { title: t('access.comment'), dataIndex: 'comment' },
-          { title: 'privsep', dataIndex: 'privsep', width: 80 },
+          {
+            title: t('access.tokenScope'),
+            dataIndex: 'privsep',
+            width: 140,
+            render: (v: unknown) => (
+              <Tag className={Number(v) === 1 || v === true ? 'tech-tag-ok' : undefined}>
+                {Number(v) === 1 || v === true ? t('access.tokenScopePrivsep') : t('access.tokenScopeFull')}
+              </Tag>
+            ),
+          },
           {
             title: t('common.status'),
             key: 'status',

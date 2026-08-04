@@ -30,6 +30,7 @@ import { useAppShortcuts } from '../hooks/useAppShortcuts'
 import { AboutModal } from '../features/settings/AboutModal'
 import { ShortcutsModal } from '../features/settings/ShortcutsModal'
 import { useClusterResources } from '../hooks/useClusterResources'
+import { clusterFromStatus, isQuorate, useClusterStatus } from '../hooks/useClusterStatus'
 import { pveQueryKey, pveRequest } from '../lib/pve'
 import { CreateVmWizard } from '../features/resources/create-vm/CreateVmWizard'
 import { CreateCtWizard } from '../features/resources/create-ct/CreateCtWizard'
@@ -67,6 +68,11 @@ function ConnectionSwitcher(): React.JSX.Element | null {
             <Space>
               <Badge status={PHASE_STATUS[phases[c.id] ?? 'idle']} />
               {c.name}
+              {c.username ? (
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  {c.username}
+                </Typography.Text>
+              ) : null}
             </Space>
           ),
           onClick: () => setActive(c.id),
@@ -75,7 +81,14 @@ function ConnectionSwitcher(): React.JSX.Element | null {
     >
       <Space className="header-chrome" style={{ cursor: 'pointer' }}>
         <ApiOutlined style={{ color: PVE_COLORS.info }} />
-        {active ? active.name : '—'}
+        <span>
+          {active ? active.name : '—'}
+          {active?.username ? (
+            <Typography.Text type="secondary" style={{ marginInlineStart: 8, fontSize: 12 }}>
+              {active.username}
+            </Typography.Text>
+          ) : null}
+        </span>
         <LedDot
           kind={
             phase === 'authenticated'
@@ -100,12 +113,10 @@ function ClusterHealthChips({ connectionId }: { connectionId: string }): React.J
   const online = nodes.filter((n) => n.status === 'online').length
   const clusterOk = nodes.length > 0 && online === nodes.length
 
-  const joinQuery = useQuery({
-    queryKey: pveQueryKey(connectionId, 'GET', '/cluster/config/join', {}),
-    queryFn: () =>
-      pveRequest<{ totem?: { cluster_name?: string } }>(connectionId, 'GET', '/cluster/config/join', {}),
-    staleTime: 60_000,
-  })
+  const statusQuery = useClusterStatus(connectionId, 30_000)
+  const cluster = clusterFromStatus(statusQuery.data)
+  const quorate = isQuorate(cluster)
+  const clusterTitle = cluster?.name
 
   const firstNode = nodes.find((n) => n.status === 'online')?.node ?? nodes[0]?.node
   const cephQuery = useQuery({
@@ -118,7 +129,8 @@ function ClusterHealthChips({ connectionId }: { connectionId: string }): React.J
       }),
     enabled: Boolean(firstNode),
     retry: false,
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   })
 
   const cephStatus = cephQuery.data?.health?.status
@@ -126,15 +138,15 @@ function ClusterHealthChips({ connectionId }: { connectionId: string }): React.J
 
   return (
     <Flex gap={10} align="center" wrap={false}>
-      <span className="health-chip" title={joinQuery.data?.totem?.cluster_name}>
+      <span className="health-chip" title={clusterTitle}>
         <LedDot kind={clusterOk ? 'online' : nodes.length ? 'warn' : 'stopped'} />
         {t('nav.healthCluster')}{' '}
         <strong>{clusterOk ? t('nav.healthHealthy') : t('nav.healthUnknown')}</strong>
       </span>
       <span className="health-chip">
-        <LedDot kind={online > 0 ? 'online' : 'stopped'} />
+        <LedDot kind={quorate ? 'online' : 'stopped'} />
         {t('nav.healthQuorum')}{' '}
-        <strong>{online > 0 ? t('nav.healthYes') : t('nav.healthUnknown')}</strong>
+        <strong>{statusQuery.isSuccess ? (quorate ? t('nav.healthYes') : t('nav.healthUnknown')) : t('nav.healthUnknown')}</strong>
       </span>
       {showCeph ? (
         <span className="health-chip">
@@ -382,14 +394,14 @@ export function AppLayout(): React.JSX.Element {
       {activeId ? (
         <>
           <CreateVmWizard
-            key={vmWizardKey}
+            key={`vm-${vmWizardKey}`}
             open={createVmOpen}
             connectionId={activeId}
             nodes={nodeNames}
             onClose={() => setCreateVmOpen(false)}
           />
           <CreateCtWizard
-            key={ctWizardKey}
+            key={`ct-${ctWizardKey}`}
             open={createCtOpen}
             connectionId={activeId}
             nodes={nodeNames}

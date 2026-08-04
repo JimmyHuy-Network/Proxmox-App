@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { App, Button, Form, Input, Modal, Space, Tabs, Typography } from 'antd'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PveGrid } from '../../components/PveGrid'
 import { PveForm } from '../../components/PveForm'
@@ -97,6 +97,19 @@ function SdnTab({
     queryKey: pveQueryKey(connectionId, 'GET', '/cluster/sdn/vnets', {}),
     queryFn: () => pveRequest<Row[]>(connectionId, 'GET', '/cluster/sdn/vnets', {}),
   })
+  const vnetIds = useMemo(
+    () => (vnetsQ.data ?? []).map((v) => String(v.vnet ?? '')).filter(Boolean),
+    [vnetsQ.data],
+  )
+  const subnetQueries = useQueries({
+    queries: vnetIds.map((vnet) => ({
+      queryKey: pveQueryKey(connectionId, 'GET', '/cluster/sdn/vnets/{vnet}/subnets', { vnet }),
+      queryFn: () =>
+        pveRequest<Row[]>(connectionId, 'GET', '/cluster/sdn/vnets/{vnet}/subnets', { vnet }),
+      enabled: Boolean(vnet),
+    })),
+  })
+  const subnetCount = subnetQueries.reduce((n, q) => n + (q.data?.length ?? 0), 0)
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
@@ -115,6 +128,14 @@ function SdnTab({
           </Typography.Text>
           <div className="tech-mono" style={{ fontSize: 20 }}>
             {vnetsQ.data?.length ?? '—'}
+          </div>
+        </div>
+        <div className="neon-border" style={{ padding: '8px 14px', borderRadius: 8, minWidth: 120 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            {t('sdn.subnets')}
+          </Typography.Text>
+          <div className="tech-mono" style={{ fontSize: 20 }}>
+            {vnetIds.length === 0 ? '—' : subnetCount}
           </div>
         </div>
       </Space>

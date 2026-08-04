@@ -219,7 +219,7 @@ export function ConnectionForm({
           <Alert
             type={testResult.ok ? 'success' : 'error'}
             showIcon
-            message={testResult.text}
+            title={testResult.text}
             style={{ marginTop: 8 }}
           />
         )}

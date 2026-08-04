@@ -125,7 +125,7 @@ export function StorageDrawer(): React.JSX.Element {
     <>
       <Drawer
         open={open}
-        width={880}
+        size={880}
         title={title}
         onClose={() => select(null)}
         destroyOnHidden
