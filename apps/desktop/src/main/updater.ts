@@ -90,5 +90,8 @@ export async function checkForUpdatesNow(): Promise<UpdateStatus> {
 }
 
 export function quitAndInstall(): void {
-  autoUpdater.quitAndInstall()
+  // NSIS: isSilent → /S (không hiện wizard Next); isForceRunAfter → mở lại app sau khi cài.
+  // (Auto-install khi quit đã silent sẵn trong electron-updater; nút Settings trước đây
+  // gọi quitAndInstall() mặc định → mở installer tương tác.)
+  autoUpdater.quitAndInstall(true, true)
 }
