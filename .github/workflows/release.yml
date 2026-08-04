@@ -61,7 +61,14 @@ jobs:
 
       - name: Sync desktop version from tag
         shell: bash
-        run: npm version "${{ steps.meta.outputs.version }}" --no-git-tag-version -w @pve/desktop
+        run: |
+          CUR=$(node -p "require('./apps/desktop/package.json').version")
+          WANT="${{ steps.meta.outputs.version }}"
+          if [ "$CUR" = "$WANT" ]; then
+            echo "Desktop already at $WANT — skip npm version"
+          else
+            npm version "$WANT" --no-git-tag-version -w @pve/desktop
+          fi
 
       # electron-builder 26 uploads .exe / .blockmap / latest.yml in parallel; each
       # publisher may race to create the GitHub release → duplicate releases with
