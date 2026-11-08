@@ -59,9 +59,7 @@ jobs:
       - name: Check Windows cross-build tools
         shell: bash
         run: |
-          command -v wine >/dev/null || { echo "::error::Install Wine on the Linux runner to build the Windows NSIS installer"; exit 1; }
           command -v gh >/dev/null || { echo "::error::Install GitHub CLI (gh) on the Linux runner to publish releases"; exit 1; }
-          wine --version
           gh --version
 
       - name: Install dependencies

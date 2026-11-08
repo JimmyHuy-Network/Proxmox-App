@@ -23,10 +23,6 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - name: Check Wine for Windows packaging
-        run: |
-          command -v wine >/dev/null || { echo "::error::Install Wine on the Linux runner to build the Windows NSIS installer"; exit 1; }
-          wine --version
       - name: Package Windows installer without publishing
         working-directory: apps/desktop
         env:
