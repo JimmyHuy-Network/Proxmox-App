@@ -17,10 +17,6 @@ npmRebuild: true
 
 asar: true
 
-# Portable Wine 11 (WoW64) for Windows packaging on Linux; no system install needed.
-toolsets:
-  wine: '1.0.1'
-
 win:
   target:
     - target: nsis

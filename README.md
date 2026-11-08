@@ -214,9 +214,11 @@ push tag `v*` (hoặc `workflow_dispatch`):
 
 CI và Release dùng runner Linux x64 có nhãn `self-hosted`, `Linux`, `X64`.
 Release vẫn tạo installer **Windows x64 (NSIS)** bằng `electron-builder --win`.
-Runner cần Bash, Git và GitHub CLI (`gh`) trên PATH để release. electron-builder
-tự tải Wine 11 portable vào cache theo `toolsets.wine: '1.0.1'`, không cần cài
-Wine hệ thống. Workflow kiểm tra `gh` trước khi release. CI chỉ chạy PR có nhánh nguồn trong repo này;
+Runner cần Bash, Git và Wine (`wine`) trên PATH; release cần thêm GitHub CLI (`gh`).
+Workflow kiểm tra Wine trước khi build và dùng `USE_SYSTEM_WINE=true`.
+Trên Ubuntu có thể cài bằng `sudo apt-get update && sudo apt-get install -y wine`,
+sau đó kiểm tra `wine cmd /c exit 0` dưới tài khoản chạy runner.
+CI chỉ chạy PR có nhánh nguồn trong repo này;
 PR từ fork không chạy mã trên máy self-hosted. Build trên Linux chưa thay thế
 việc kiểm thử installer và auto-update trên Windows thật.
 

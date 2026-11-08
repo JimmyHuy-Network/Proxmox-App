@@ -59,7 +59,10 @@ jobs:
       - name: Check Windows cross-build tools
         shell: bash
         run: |
+          command -v wine >/dev/null || { echo "::error::Install and configure Wine on this Linux runner before building Windows installers"; exit 1; }
           command -v gh >/dev/null || { echo "::error::Install GitHub CLI (gh) on the Linux runner to publish releases"; exit 1; }
+          wine --version
+          WINEDEBUG=-all,err+all timeout 60 wine cmd /c exit 0
           gh --version
 
       - name: Install dependencies
@@ -117,6 +120,7 @@ jobs:
           # Chưa có cert → bỏ qua auto-discover (tránh fail trên runner).
           # Khi có EV/OV: đặt secrets CSC_LINK + CSC_KEY_PASSWORD và xoá dòng này.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          USE_SYSTEM_WINE: 'true'
         run: npm run release:win
 
       - name: Publish draft release
