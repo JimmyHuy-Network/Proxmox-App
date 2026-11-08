@@ -38,7 +38,11 @@ jobs:
             npx --no-install electron-builder --win --x64 --publish never
           fi
       - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
+        timeout-minutes: 8
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: '1'
+          ACTIONS_ARTIFACT_UPLOAD_TIMEOUT_MS: '120000'
         with:
           name: windows-x64-${{ github.sha }}
           path: |
@@ -46,3 +50,4 @@ jobs:
             apps/desktop/release/*.blockmap
             apps/desktop/release/latest.yml
           if-no-files-found: error
+          compression-level: 0
