@@ -6,6 +6,7 @@
 module.exports = {
   extends: './electron-builder.yml',
   electronDownload: {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS builder config.
     checksums: require('electron/checksums.json'),
   },
 }
