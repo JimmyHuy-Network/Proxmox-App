@@ -15,6 +15,22 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
+      - name: Check cached Wine runtime
+        run: |
+          cat /etc/os-release
+          if command -v docker >/dev/null; then
+            docker info --format '{{.ServerVersion}}' || true
+          fi
+          wine_cache="${XDG_CACHE_HOME:-$HOME/.cache}/electron-builder/wine@1.0.1"
+          if [ -d "$wine_cache" ]; then
+            wine_bin=$(find "$wine_cache" -path '*/bin/wine' -type f -print -quit)
+            if [ -n "$wine_bin" ]; then
+              wine_root=$(dirname "$(dirname "$wine_bin")")
+              find "$wine_root" -path '*/x86_64-unix/ntdll*' -type f -exec ldd {} \;
+              WINEPREFIX="$wine_root/wine-home" LD_LIBRARY_PATH="$wine_root/lib" \
+                WINEDEBUG=-all,err+all timeout 30 "$wine_bin" cmd /c exit 0
+            fi
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22.22.2'
