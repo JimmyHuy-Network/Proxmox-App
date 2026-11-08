@@ -1,4 +1,4 @@
-import type { TLSSocket } from 'node:tls'
+import { createTlsAgent } from '../pve/tls-agent.ts'
 import WebSocket, { type RawData } from 'ws'
 import type { ConsoleCloseReason, ConsoleKind, ConsoleOpenRequest } from '@pve/ipc'
 import type { ConsoleEndpoint } from '../pve/connection.ts'
@@ -138,13 +138,11 @@ function createUpstreamRelaySession(init: {
 
       const wsPath = buildVncWebsocketPath(init.open, init.proxy)
       const headers = buildUpstreamHeaders(init.endpoint)
-      const relaxTls = Boolean(init.endpoint.pinnedFingerprint) || init.endpoint.allowSelfSigned
-
+      const agent = createTlsAgent(init.endpoint)
       const ws = new WebSocket(`wss://${init.endpoint.host}:${init.endpoint.port}${wsPath}`, 'binary', {
         headers,
-        // Cert tự ký: bỏ CA check; nếu đã ghim thì đối chiếu vân tay ngay khi open
-        // (trước handshake) — cùng nguyên tắc với https-transport.ts.
-        rejectUnauthorized: !relaxTls,
+        agent,
+        handshakeTimeout: 10_000,
       })
       upstream = ws
       ws.binaryType = 'nodebuffer'
@@ -160,6 +158,7 @@ function createUpstreamRelaySession(init: {
         if (closed) return
         closed = true
         pendingFromClient.length = 0
+        agent.destroy()
         init.hooks?.onClosed?.(reason, message)
         if (client.readyState === client.OPEN) client.close()
         if (ws.readyState === ws.OPEN || ws.readyState === ws.CONNECTING) ws.close()
@@ -189,13 +188,6 @@ function createUpstreamRelaySession(init: {
       }
 
       ws.on('open', () => {
-        if (init.endpoint.pinnedFingerprint) {
-          const mismatch = verifyWsFingerprint(ws, init.endpoint.pinnedFingerprint)
-          if (mismatch) {
-            finish('upstream-error', mismatch)
-            return
-          }
-        }
         // Handshake termproxy/vnc: `user:ticket\n` — xử lý trong main để ticket
         // không bao giờ lọt sang renderer.
         ws.send(Buffer.from(`${init.proxy.user}:${init.proxy.ticket}\n`, 'utf8'))
@@ -276,23 +268,6 @@ function buildUpstreamHeaders(endpoint: ConsoleEndpoint): Record<string, string>
   return headers
 }
 
-function verifyWsFingerprint(ws: WebSocket, pinnedFingerprint: string): string | null {
-  const pinned = pinnedFingerprint.replace(/:/g, '').toUpperCase()
-  // ws lưu TLS socket tại `_socket` sau khi bắt tay.
-  const socket = (ws as unknown as { _socket?: TLSSocket })._socket
-  if (!socket || typeof socket.getPeerCertificate !== 'function') {
-    return 'Không đọc được chứng chỉ console'
-  }
-  const cert = socket.getPeerCertificate()
-  const actual = cert?.fingerprint256?.replace(/:/g, '').toUpperCase() ?? ''
-  if (actual !== pinned) return 'Vân tay chứng chỉ không khớp khi mở console'
-  return null
-}
-
-/**
- * SPICE: gọi spiceproxy, ghi file `.vv`, mở bằng `shell.openPath` (virt-viewer).
- * Không tạo relay WebSocket.
- */
 export async function fetchSpiceConfig(
   request: RequestFn,
   open: ConsoleOpenRequest,

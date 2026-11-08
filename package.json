@@ -1,17 +1,17 @@
 {
   "name": "proxmox-app",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "Ứng dụng desktop điều khiển Proxmox VE với đầy đủ tính năng như web UI",
   "author": "Proxmox-App",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/phamhuyti/Proxmox-App.git"
+    "url": "https://github.com/JimmyHuy-Network/Proxmox-App.git"
   },
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19"
   },
   "workspaces": [
     "packages/*",
@@ -31,6 +31,9 @@
     "schema:generate": "npm run generate --workspace=@pve/api",
     "//postinstall": "Mã client sinh tự động bị gitignore (tái tạo được từ JSON đã commit). Sinh lại ngay sau install để repo vừa clone về đã biên dịch được. Không đụng mạng — chỉ đọc pve-9.2.schema.json.",
     "postinstall": "npm run schema:generate"
+  },
+  "overrides": {
+    "minimatch@>=9 <11.0.1": "^11.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

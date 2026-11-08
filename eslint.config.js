@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/out/**',
       '**/dist/**',
       '**/release/**',
+      '.npm-cache/**',
       // Mã sinh tự động không bao giờ lint — nó sinh ra từ schema của Proxmox,
       // sửa theo ý lint là mất ngay ở lần sinh lại kế tiếp.
       'packages/pve-api/src/generated/**',

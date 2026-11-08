@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # This public repo must not execute fork-supplied code on our own machine.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Windows cross-build runtime
+        run: bash .github/scripts/prepare-wine.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.2'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Package Windows installer without publishing
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          USE_SYSTEM_WINE: 'true'
+        run: |
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a npx --no-install electron-builder --config electron-builder.cjs --win --x64 --publish never
+          else
+            npx --no-install electron-builder --config electron-builder.cjs --win --x64 --publish never
+          fi
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v7.0.2
+        timeout-minutes: 8
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: '1'
+          ACTIONS_ARTIFACT_UPLOAD_TIMEOUT_MS: '120000'
+        with:
+          name: windows-x64-${{ github.sha }}
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest.yml
+          if-no-files-found: error
+          compression-level: 0

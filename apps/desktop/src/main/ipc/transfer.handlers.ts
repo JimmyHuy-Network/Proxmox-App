@@ -1,9 +1,10 @@
 import { basename } from 'node:path'
 import { createWriteStream } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
-import { Readable } from 'node:stream'
+import { Transform } from 'node:stream'
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { Agent, request as httpsRequest } from 'node:https'
+import { request as httpsRequest } from 'node:https'
+import { createTlsAgent } from '../pve/tls-agent.ts'
 import {
   IpcChannel,
   type TransferDownloadRequest,
@@ -82,24 +83,24 @@ async function startUpload(
     return { ok: false, message: 'Thiếu request' }
   }
   const req = rawRequest as TransferUploadRequest
+  if ('filePath' in rawRequest) {
+    return { ok: false, message: 'Đường dẫn upload phải được chọn qua hộp thoại của ứng dụng' }
+  }
   if (!req.connectionId || !req.node || !req.storage || !req.content) {
     return { ok: false, message: 'Thiếu connectionId/node/storage/content' }
   }
 
-  let filePath = req.filePath
-  if (!filePath) {
-    const picked = await dialog.showOpenDialog(parentWindow ?? undefined!, {
-      properties: ['openFile'],
-      filters: [
-        { name: 'ISO / template', extensions: ['iso', 'img', 'tar', 'gz', 'zst', 'xz', 'ova', 'vma'] },
-        { name: 'All', extensions: ['*'] },
-      ],
-    })
-    if (picked.canceled || !picked.filePaths[0]) {
-      return { ok: false, message: 'Đã huỷ chọn file' }
-    }
-    filePath = picked.filePaths[0]
+  const picked = await dialog.showOpenDialog(parentWindow ?? undefined!, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'ISO / template', extensions: ['iso', 'img', 'tar', 'gz', 'zst', 'xz', 'ova', 'vma'] },
+      { name: 'All', extensions: ['*'] },
+    ],
+  })
+  if (picked.canceled || !picked.filePaths[0]) {
+    return { ok: false, message: 'Đã huỷ chọn file' }
   }
+  const filePath = picked.filePaths[0]
 
   const filename = req.filename || basename(filePath)
   const transferId = crypto.randomUUID()
@@ -129,7 +130,7 @@ async function startUpload(
         storage: req.storage,
         content: req.content,
         filename,
-        filePath: filePath!,
+        filePath,
         headers,
         ...(endpoint.certFingerprint ? { pinnedFingerprint: endpoint.certFingerprint } : {}),
         allowSelfSigned: endpoint.allowSelfSigned,
@@ -212,6 +213,9 @@ async function startDownload(
     return { ok: false, message: 'Thiếu request' }
   }
   const req = rawRequest as TransferDownloadRequest
+  if ('savePath' in rawRequest) {
+    return { ok: false, message: 'Đường dẫn lưu phải được chọn qua hộp thoại của ứng dụng' }
+  }
   if (!req.connectionId || !req.node || !req.storage || !req.volume) {
     return { ok: false, message: 'Thiếu connectionId/node/storage/volume' }
   }
@@ -226,16 +230,13 @@ async function startDownload(
       // giữ tên từ volume
     }
   }
-  let savePath = req.savePath
-  if (!savePath) {
-    const picked = await dialog.showSaveDialog(parentWindow ?? undefined!, {
-      defaultPath: defaultName,
-    })
-    if (picked.canceled || !picked.filePath) {
-      return { ok: false, message: 'Đã huỷ lưu file' }
-    }
-    savePath = picked.filePath
+  const picked = await dialog.showSaveDialog(parentWindow ?? undefined!, {
+    defaultPath: defaultName,
+  })
+  if (picked.canceled || !picked.filePath) {
+    return { ok: false, message: 'Đã huỷ lưu file' }
   }
+  const savePath = picked.filePath
 
   const transferId = crypto.randomUUID()
   const ac = new AbortController()
@@ -264,8 +265,9 @@ async function startDownload(
         : `${base}/content/${encodeURIComponent(req.volume)}?download=1`
 
       await new Promise<void>((resolve, reject) => {
-        const agent = new Agent({
-          rejectUnauthorized: !(endpoint.certFingerprint || endpoint.allowSelfSigned),
+        const agent = createTlsAgent({
+          ...(endpoint.certFingerprint ? { pinnedFingerprint: endpoint.certFingerprint } : {}),
+          allowSelfSigned: endpoint.allowSelfSigned,
         })
         const httpsReq = httpsRequest(
           {
@@ -275,34 +277,39 @@ async function startDownload(
             path,
             headers: { ...headers, Accept: 'application/octet-stream' },
             agent,
+            signal: ac.signal,
+            timeout: 30_000,
           },
           (res) => {
             if ((res.statusCode ?? 0) >= 400) {
+              res.resume()
               reject(new Error(`HTTP ${res.statusCode}`))
               return
             }
             const total = Number(res.headers['content-length'] ?? 0)
             let sent = 0
-            res.on('data', (chunk: Buffer) => {
-              sent += chunk.length
-              emit({
-                kind: 'transfer',
-                transferId,
-                connectionId: req.connectionId,
-                transferKind: 'download',
-                phase: 'progress',
-                bytesSent: sent,
-                ...(total > 0 ? { totalBytes: total } : {}),
-              })
+            const progress = new Transform({
+              transform(chunk: Buffer, _encoding, callback) {
+                sent += chunk.length
+                emit({
+                  kind: 'transfer',
+                  transferId,
+                  connectionId: req.connectionId,
+                  transferKind: 'download',
+                  phase: 'progress',
+                  bytesSent: sent,
+                  ...(total > 0 ? { totalBytes: total } : {}),
+                })
+                callback(null, chunk)
+              },
             })
-            const out = createWriteStream(savePath!)
-            void pipeline(Readable.from(res), out).then(resolve, reject)
+            const out = createWriteStream(savePath)
+            void pipeline(res, progress, out).then(resolve, reject)
           },
         )
         httpsReq.on('error', reject)
-        ac.signal.addEventListener('abort', () => httpsReq.destroy(new DOMException('Aborted', 'AbortError')), {
-          once: true,
-        })
+        httpsReq.on('timeout', () => httpsReq.destroy(new Error('Download timed out')))
+        httpsReq.once('close', () => agent.destroy())
         httpsReq.end()
       })
 

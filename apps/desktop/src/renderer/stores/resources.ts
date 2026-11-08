@@ -40,6 +40,10 @@ export function resourcesSignature(resources: unknown[]): string {
         r['cpu'] ?? '',
         r['mem'] ?? '',
         r['maxmem'] ?? '',
+        r['disk'] ?? '',
+        r['maxdisk'] ?? '',
+        r['maxcpu'] ?? '',
+        r['lock'] ?? '',
         r['template'] ?? '',
       ].join(':'),
     )

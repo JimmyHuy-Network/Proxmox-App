@@ -15,11 +15,6 @@ export interface TransferUploadRequest {
   storage: string
   /** iso | vztmpl | import */
   content: string
-  /**
-   * Đường dẫn tuyệt đối trên máy local. Nếu bỏ trống, main mở hộp thoại chọn file.
-   * (E2E / test có thể truyền sẵn.)
-   */
-  filePath?: string
   /** Ghi đè tên file trên storage; mặc định lấy basename của file local. */
   filename?: string
 }
@@ -35,8 +30,6 @@ export interface TransferDownloadRequest {
    * Khi có, main gọi `/file-restore/download` thay vì content volume.
    */
   filepath?: string
-  /** Đường dẫn lưu; bỏ trống → hộp thoại Save. */
-  savePath?: string
 }
 
 export interface TransferStartResult {

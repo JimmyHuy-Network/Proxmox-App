@@ -21,24 +21,28 @@ concurrency:
 jobs:
   windows:
     name: Build & publish Windows
-    runs-on: windows-latest
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
     steps:
       - name: Resolve tag
         id: meta
         shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
-            TAG="${{ inputs.tag }}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF_NAME}"
           else
             echo "::error::Release requires a tag (push v* or workflow_dispatch with tag input)"
             exit 1
           fi
-          case "$TAG" in
-            v*) VERSION="${TAG#v}" ;;
-            *) echo "::error::Tag must look like v0.2.0 (got $TAG)"; exit 1 ;;
-          esac
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag must be a release version (for example v0.2.0)"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -50,14 +54,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.22.2'
           cache: npm
+
+      - name: Check Windows cross-build tools
+        shell: bash
+        run: |
+          bash .github/scripts/prepare-release-tools.sh
 
       - name: Install dependencies
         run: npm ci
 
       - name: Install Electron binary
         run: node node_modules/electron/install.js
+
+      - name: Validate source before publishing
+        run: |
+          npm run lint
+          npm test
 
       - name: Sync desktop version from tag
         shell: bash
@@ -82,19 +96,21 @@ jobs:
         run: |
           TAG="${{ steps.meta.outputs.tag }}"
           VERSION="${{ steps.meta.outputs.version }}"
-          # Drop any prior releases for this tag (broken duplicates from race).
-          mapfile -t IDS < <(gh api "repos/${{ github.repository }}/releases" \
-            --jq ".[] | select(.tag_name==\"$TAG\") | .id")
-          for id in "${IDS[@]:-}"; do
-            [ -n "$id" ] || continue
-            echo "Deleting existing release id=$id for $TAG"
-            gh api -X DELETE "repos/${{ github.repository }}/releases/$id"
-          done
-          gh release create "$TAG" \
-            --draft \
-            --title "$VERSION" \
-            --notes "Proxmox VE Manager $VERSION" \
-            --target "$(git rev-parse HEAD)"
+          if gh release view "$TAG" --json isDraft >/dev/null 2>&1; then
+            IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
+            [ "$IS_DRAFT" = true ] || { echo "::error::Release $TAG is already public; use a new version"; exit 1; }
+            echo "Reusing draft release $TAG"
+          else
+            NOTES=(--notes "Proxmox VE Manager $VERSION")
+            if [ -f "docs/releases/$TAG.md" ]; then
+              NOTES=(--notes-file "docs/releases/$TAG.md")
+            fi
+            gh release create "$TAG" \
+              --draft \
+              --title "$VERSION" \
+              "${NOTES[@]}" \
+              --target "$(git rev-parse HEAD)"
+          fi
 
       - name: Build & publish Windows installer
         working-directory: apps/desktop
@@ -103,7 +119,13 @@ jobs:
           # Chưa có cert → bỏ qua auto-discover (tránh fail trên runner).
           # Khi có EV/OV: đặt secrets CSC_LINK + CSC_KEY_PASSWORD và xoá dòng này.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run release:win
+          USE_SYSTEM_WINE: 'true'
+        run: |
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a npm run release:win
+          else
+            npm run release:win
+          fi
 
       - name: Publish draft release
         env:
@@ -116,6 +138,7 @@ jobs:
           echo "Assets on $TAG: $ASSETS"
           echo "$ASSETS" | grep -q 'latest.yml' || { echo "::error::missing latest.yml"; exit 1; }
           echo "$ASSETS" | grep -q '\.exe' || { echo "::error::missing installer .exe"; exit 1; }
+          echo "$ASSETS" | grep -q '\.blockmap' || { echo "::error::missing installer .blockmap"; exit 1; }
           gh release edit "$TAG" --draft=false
           # Tag download URL must resolve (guards against split/duplicate releases).
           curl -fsSIL "https://github.com/${{ github.repository }}/releases/download/${TAG}/latest.yml" >/dev/null
