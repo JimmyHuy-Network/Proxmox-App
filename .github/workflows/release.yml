@@ -21,24 +21,27 @@ concurrency:
 jobs:
   windows:
     name: Build & publish Windows
-    runs-on: windows-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Resolve tag
         id: meta
         shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
-            TAG="${{ inputs.tag }}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF_NAME}"
           else
             echo "::error::Release requires a tag (push v* or workflow_dispatch with tag input)"
             exit 1
           fi
-          case "$TAG" in
-            v*) VERSION="${TAG#v}" ;;
-            *) echo "::error::Tag must look like v0.2.0 (got $TAG)"; exit 1 ;;
-          esac
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag must be a release version (for example v0.2.0)"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -50,14 +53,27 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.22.2'
           cache: npm
+
+      - name: Check Windows cross-build tools
+        shell: bash
+        run: |
+          command -v wine >/dev/null || { echo "::error::Install Wine on the Linux runner to build the Windows NSIS installer"; exit 1; }
+          command -v gh >/dev/null || { echo "::error::Install GitHub CLI (gh) on the Linux runner to publish releases"; exit 1; }
+          wine --version
+          gh --version
 
       - name: Install dependencies
         run: npm ci
 
       - name: Install Electron binary
         run: node node_modules/electron/install.js
+
+      - name: Validate source before publishing
+        run: |
+          npm run lint
+          npm test
 
       - name: Sync desktop version from tag
         shell: bash

@@ -1,9 +1,8 @@
 import { createReadStream, statSync } from 'node:fs'
-import { Agent, request as httpsRequest } from 'node:https'
+import { request as httpsRequest } from 'node:https'
 import type { IncomingMessage } from 'node:http'
 import { randomBytes } from 'node:crypto'
-import type { Socket } from 'node:net'
-import type { TLSSocket } from 'node:tls'
+import { createTlsAgent } from './tls-agent.ts'
 
 /**
  * POST multipart lên `/nodes/{node}/storage/{storage}/upload`.
@@ -32,23 +31,6 @@ export interface MultipartUploadResult {
   /** UPID hoặc chuỗi data từ Proxmox. */
   data: string | null
   message?: string
-}
-
-function normalizeFingerprint(fp: string): string {
-  return fp.replace(/:/g, '').toUpperCase()
-}
-
-function verifyPinnedSocket(socket: Socket, pinned: string, onMismatch: (err: Error) => void): void {
-  const tls = socket as TLSSocket
-  if (typeof tls.getPeerCertificate !== 'function') return
-  const check = (): void => {
-    const cert = tls.getPeerCertificate()
-    const actual = cert?.fingerprint256 ? normalizeFingerprint(cert.fingerprint256) : ''
-    if (actual !== pinned) onMismatch(new Error('PVE_CERT_FINGERPRINT_MISMATCH'))
-  }
-  const existing = tls.getPeerCertificate()
-  if (existing && existing.fingerprint256) check()
-  else tls.once('secureConnect', check)
 }
 
 function encodeMultipart(
@@ -96,12 +78,7 @@ export function uploadMultipart(init: MultipartUploadInit): Promise<MultipartUpl
   )
   const contentLength = preamble.length + totalBytes + epilogue.length
 
-  const agent = new Agent({
-    keepAlive: false,
-    rejectUnauthorized: !(init.pinnedFingerprint || init.allowSelfSigned),
-  })
-
-  const pinned = init.pinnedFingerprint ? normalizeFingerprint(init.pinnedFingerprint) : null
+  const agent = createTlsAgent(init, { keepAlive: false })
 
   return new Promise((resolve, reject) => {
     if (init.signal?.aborted) {
@@ -140,10 +117,6 @@ export function uploadMultipart(init: MultipartUploadInit): Promise<MultipartUpl
       },
     )
 
-    if (pinned) {
-      req.on('socket', (socket) => verifyPinnedSocket(socket, pinned, (err) => req.destroy(err)))
-    }
-
     req.on('error', (err) => reject(err))
 
     const onAbort = (): void => {
@@ -161,6 +134,11 @@ export function uploadMultipart(init: MultipartUploadInit): Promise<MultipartUpl
     report(preamble.length)
 
     const stream = createReadStream(init.filePath)
+    req.once('close', () => {
+      stream.destroy()
+      agent.destroy()
+      init.signal?.removeEventListener('abort', onAbort)
+    })
     stream.on('data', (chunk: string | Buffer) => {
       const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
       report(buf.length)
@@ -176,12 +154,5 @@ export function uploadMultipart(init: MultipartUploadInit): Promise<MultipartUpl
     })
     stream.pipe(req, { end: false })
 
-    init.signal?.addEventListener(
-      'abort',
-      () => {
-        stream.destroy()
-      },
-      { once: true },
-    )
   })
 }

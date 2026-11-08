@@ -21,7 +21,7 @@ UI mockups: [`docs/ui-mockups/`](docs/ui-mockups/) · kế hoạch UI:
 
 | | |
 |---|---|
-| **Node.js** | **≥ 22.18** (khuyến nghị 22.19+). Mock chạy `node src/index.ts` nhờ type-stripping native; `undici` cần ≥ 22.19. |
+| **Node.js** | **≥ 22.19**. Mock chạy `node src/index.ts` nhờ type-stripping native; `undici` cần ≥ 22.19. |
 | **npm** | Đi kèm Node (repo dùng npm workspaces). |
 | **OS** | Dev trên Linux/macOS/Windows. Installer Windows qua `build:win`. |
 | **Display** | Electron cần display. Trên VM headless dùng `DISPLAY=:1` (hoặc Xvfb). |
@@ -150,6 +150,10 @@ DISPLAY=:1 PVE_E2E_MOCK_URL=https://127.0.0.1:8006 npm run dev
 
 Tuỳ chọn: `PVE_E2E_USER` (mặc định `root@pam`), `PVE_E2E_PASSWORD` (mặc định `x`).
 
+Hook này chỉ hoạt động trong bản dev với URL HTTPS loopback. Credential thử nghiệm
+được lưu riêng trong `userData/e2e/vault.json`; bản đóng gói bỏ qua hook.
+Upload/download luôn yêu cầu chọn file bằng hộp thoại trong main process.
+
 ### Smoke khởi động (CI)
 
 ```bash
@@ -204,9 +208,19 @@ Installer **chưa ký số** — SmartScreen sẽ cảnh báo khi cài.
 
 ### Phát hành + auto-update
 
-`electron-builder` publish lên **GitHub Releases** (`phamhuyti/Proxmox-App`).
+`electron-builder` publish lên **GitHub Releases** (`JimmyHuy-Network/Proxmox-App`).
 Workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) chạy khi
 push tag `v*` (hoặc `workflow_dispatch`):
+
+CI và Release dùng runner Linux x64 có nhãn `self-hosted`, `Linux`, `X64`.
+Release vẫn tạo installer **Windows x64 (NSIS)** bằng `electron-builder --win`.
+Runner cần Bash, Git, Wine (`wine`) và GitHub CLI (`gh`) trên PATH; workflow kiểm
+tra Wine và `gh` trước khi build. CI chỉ chạy PR có nhánh nguồn trong repo này;
+PR từ fork không chạy mã trên máy self-hosted. Build trên Linux chưa thay thế
+việc kiểm thử installer và auto-update trên Windows thật.
+
+CI chạy trên push/PR nội bộ hoặc `workflow_dispatch`, kiểm tra mã rồi đóng gói
+installer Windows bằng Wine và lưu artifact `windows-x64-<commit>`, không publish release.
 
 ```bash
 # ví dụ phát hành 0.2.0

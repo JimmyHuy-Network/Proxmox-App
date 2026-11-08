@@ -1,4 +1,3 @@
-import { join } from 'node:path'
 import { statfsSync } from 'node:fs'
 import { app, BrowserWindow, crashReporter, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
@@ -11,6 +10,7 @@ import { registerVaultHandlers } from './ipc/vault.handlers'
 import { registerStreamHandlers } from './ipc/stream.handlers'
 import { registerTransferHandlers } from './ipc/transfer.handlers'
 import { E2ePlainEncryptor, SafeStorageEncryptor } from './security/encryptor'
+import { e2eSettings } from './security/e2e'
 import { Vault } from './security/vault'
 import { ConnectionPool } from './pve/connection-pool'
 import { ResourcePoller } from './pve/resource-poller'
@@ -82,10 +82,11 @@ async function bootstrap(): Promise<void> {
   // Kho kết nối + connection pool. Vault nằm trong userData; secret mã hóa bằng
   // DPAPI (safeStorage), ticket/CSRF chỉ giữ trong bộ nhớ pool.
   // E2E headless: dùng plaintext encryptor vì libsecret thường không có.
-  const encryptor = process.env['PVE_E2E_MOCK_URL']
+  const e2e = e2eSettings(app.isPackaged, app.getPath('userData'), process.env['PVE_E2E_MOCK_URL'])
+  const encryptor = e2e.mockUrl
     ? new E2ePlainEncryptor()
     : new SafeStorageEncryptor()
-  const vault = new Vault(join(app.getPath('userData'), 'vault.json'), encryptor)
+  const vault = new Vault(e2e.vaultPath, encryptor)
   const pool = new ConnectionPool(vault, (id, phase, message) => {
     pushEvent({ kind: 'auth', connectionId: id, phase: phase as AuthEvent['phase'], ...(message ? { message } : {}) })
   })
@@ -121,7 +122,7 @@ async function bootstrap(): Promise<void> {
   // Playwright / E2E: ghi vault trước khi mở cửa sổ để `refresh()` lúc mount thấy
   // connection; `pool.connect` chạy sau did-finish-load để sự kiện auth không mất.
   let e2eConnectionId: string | null = null
-  const e2eMockUrl = process.env['PVE_E2E_MOCK_URL']
+  const e2eMockUrl = e2e.mockUrl
   if (e2eMockUrl) {
     try {
       const u = new URL(e2eMockUrl)
