@@ -13,13 +13,11 @@ jobs:
     # This public repo must not execute fork-supplied code on our own machine.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check Windows cross-build runtime
-        run: |
-          command -v wine >/dev/null || { echo "::error::Install and configure Wine on this Linux runner before building Windows installers (Ubuntu: sudo apt-get update && sudo apt-get install -y wine)"; exit 1; }
-          wine --version
-          WINEDEBUG=-all,err+all timeout 60 wine cmd /c exit 0
+      - name: Prepare Windows cross-build runtime
+        run: bash .github/scripts/prepare-wine.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '22.22.2'
@@ -33,7 +31,12 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           USE_SYSTEM_WINE: 'true'
-        run: npx --no-install electron-builder --win --x64 --publish never
+        run: |
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a npx --no-install electron-builder --win --x64 --publish never
+          else
+            npx --no-install electron-builder --win --x64 --publish never
+          fi
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:

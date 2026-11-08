@@ -22,6 +22,7 @@ jobs:
   windows:
     name: Build & publish Windows
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
     steps:
       - name: Resolve tag
         id: meta
@@ -59,10 +60,8 @@ jobs:
       - name: Check Windows cross-build tools
         shell: bash
         run: |
-          command -v wine >/dev/null || { echo "::error::Install and configure Wine on this Linux runner before building Windows installers"; exit 1; }
+          bash .github/scripts/prepare-wine.sh
           command -v gh >/dev/null || { echo "::error::Install GitHub CLI (gh) on the Linux runner to publish releases"; exit 1; }
-          wine --version
-          WINEDEBUG=-all,err+all timeout 60 wine cmd /c exit 0
           gh --version
 
       - name: Install dependencies
@@ -121,7 +120,12 @@ jobs:
           # Khi có EV/OV: đặt secrets CSC_LINK + CSC_KEY_PASSWORD và xoá dòng này.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           USE_SYSTEM_WINE: 'true'
-        run: npm run release:win
+        run: |
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a npm run release:win
+          else
+            npm run release:win
+          fi
 
       - name: Publish draft release
         env:
