@@ -33,9 +33,9 @@ jobs:
           USE_SYSTEM_WINE: 'true'
         run: |
           if command -v xvfb-run >/dev/null; then
-            xvfb-run -a npx --no-install electron-builder --win --x64 --publish never
+            xvfb-run -a npx --no-install electron-builder --config electron-builder.cjs --win --x64 --publish never
           else
-            npx --no-install electron-builder --win --x64 --publish never
+            npx --no-install electron-builder --config electron-builder.cjs --win --x64 --publish never
           fi
       - name: Upload Windows installer
         uses: actions/upload-artifact@v7.0.2

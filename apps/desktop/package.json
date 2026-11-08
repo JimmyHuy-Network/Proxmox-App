@@ -14,9 +14,9 @@
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "build": "npm run typecheck && electron-vite build",
-    "build:win": "npm run build && electron-builder --win",
-    "build:unpack": "npm run build && electron-builder --dir",
-    "release:win": "npm run build && electron-builder --win --publish always",
+    "build:win": "npm run build && electron-builder --config electron-builder.cjs --win",
+    "build:unpack": "npm run build && electron-builder --config electron-builder.cjs --dir",
+    "release:win": "npm run build && electron-builder --config electron-builder.cjs --win --publish always",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:electron-e2e": "npm run build && ELECTRON_E2E=1 xvfb-run -a npx vitest run electron-e2e --config ../../vitest.config.ts"
   },
